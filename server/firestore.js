@@ -1,3 +1,16 @@
+import { initializeApp, getApps } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDocs,
+  getDoc,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  writeBatch,
+} from "firebase/firestore";
 import admin from "firebase-admin";
 import dotenv from "dotenv";
 import fs from "node:fs/promises";
@@ -9,54 +22,32 @@ dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOCAL_STORE_FILE = path.join(__dirname, "local_db_store.json");
 
+export const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY || "AIzaSyAI-nGCCQSb9gX5ohEOJaDUzhrHwMGyf48",
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "pharmacy-ecfa5.firebaseapp.com",
+  projectId: process.env.FIREBASE_PROJECT_ID || "pharmacy-ecfa5",
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "pharmacy-ecfa5.firebasestorage.app",
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "836439675778",
+  appId: process.env.FIREBASE_APP_ID || "1:836439675778:web:9ba81d7c78280d16b4b59b",
+  measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-5MXZ8412J8",
+};
+
 let db = null;
 let isFirestoreConnected = false;
 
-const firebaseAdmin = admin.default || admin;
-
-// Initialize Firebase Admin if environment variables exist
+// Initialize Firebase App & Firestore SDK
 try {
-  let credential = null;
-  const {
-    FIREBASE_PROJECT_ID,
-    FIREBASE_CLIENT_EMAIL,
-    FIREBASE_PRIVATE_KEY,
-    FIREBASE_SERVICE_ACCOUNT_JSON,
-  } = process.env;
-
-  if (FIREBASE_SERVICE_ACCOUNT_JSON) {
-    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON);
-    credential = firebaseAdmin.credential.cert(serviceAccount);
-  } else if (FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY) {
-    const privateKey = FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n");
-    credential = firebaseAdmin.credential.cert({
-      projectId: FIREBASE_PROJECT_ID,
-      clientEmail: FIREBASE_CLIENT_EMAIL,
-      privateKey: privateKey,
-    });
-  }
-
-  const existingApps = firebaseAdmin.apps || [];
-
-  if (credential && existingApps.length === 0) {
-    firebaseAdmin.initializeApp({
-      credential,
-    });
-    db = firebaseAdmin.firestore();
-    isFirestoreConnected = true;
-    console.log("🔥 Successfully connected to Firebase Firestore");
-  } else if (existingApps.length > 0) {
-    db = firebaseAdmin.firestore();
-    isFirestoreConnected = true;
-  } else {
-    console.log("ℹ️ Firebase credentials not found. Using local JSON store fallback for Firestore interface.");
-  }
+  const existingApps = getApps();
+  const app = existingApps.length === 0 ? initializeApp(firebaseConfig) : existingApps[0];
+  db = getFirestore(app);
+  isFirestoreConnected = true;
+  console.log(`🔥 Connected to Firebase Firestore project: ${firebaseConfig.projectId}`);
 } catch (err) {
-  console.warn("⚠️ Failed to initialize Firebase Admin SDK, falling back to local store:", err.message);
+  console.warn("⚠️ Firebase Client initialization failed, falling back to local store:", err.message);
   isFirestoreConnected = false;
 }
 
-// Fallback Local Memory/JSON Store for development when Firebase credentials are not provided yet
+// Fallback Local Memory/JSON Store for development
 let localStore = {
   users: [],
   auth_otps: [],
@@ -132,109 +123,129 @@ const SEED_VENDOR_PARTNERS = [
 
 export async function initializeDatabase() {
   if (isFirestoreConnected && db) {
-    // Check & Seed Medicines
-    const medSnapshot = await db.collection("medicines").get();
-    if (medSnapshot.empty) {
-      const batch = db.batch();
-      SEED_MEDICINES.forEach((med) => {
-        const docRef = db.collection("medicines").doc(String(med.id));
-        batch.set(docRef, { ...med, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-      });
-      await batch.commit();
-      console.log("✅ Seeded initial medicines in Firestore");
-    }
+    try {
+      // Check & Seed Medicines in Firestore
+      const medSnap = await getDocs(collection(db, "medicines"));
+      if (medSnap.empty) {
+        const batch = writeBatch(db);
+        SEED_MEDICINES.forEach((med) => {
+          const ref = doc(db, "medicines", String(med.id));
+          batch.set(ref, { ...med, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        });
+        await batch.commit();
+        console.log("✅ Seeded initial medicines in Firestore (pharmacy-ecfa5)");
+      }
 
-    // Check & Seed Delivery Partners
-    const delSnapshot = await db.collection("delivery_partners").get();
-    if (delSnapshot.empty) {
-      const batch = db.batch();
-      SEED_DELIVERY_PARTNERS.forEach((partner) => {
-        const docRef = db.collection("delivery_partners").doc(String(partner.id));
-        batch.set(docRef, { ...partner, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-      });
-      await batch.commit();
-      console.log("✅ Seeded initial delivery partners in Firestore");
-    }
+      // Check & Seed Delivery Partners
+      const delSnap = await getDocs(collection(db, "delivery_partners"));
+      if (delSnap.empty) {
+        const batch = writeBatch(db);
+        SEED_DELIVERY_PARTNERS.forEach((partner) => {
+          const ref = doc(db, "delivery_partners", String(partner.id));
+          batch.set(ref, { ...partner, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        });
+        await batch.commit();
+        console.log("✅ Seeded initial delivery partners in Firestore (pharmacy-ecfa5)");
+      }
 
-    // Check & Seed Vendor Partners
-    const venSnapshot = await db.collection("vendor_partners").get();
-    if (venSnapshot.empty) {
-      const batch = db.batch();
-      SEED_VENDOR_PARTNERS.forEach((vendor) => {
-        const docRef = db.collection("vendor_partners").doc(String(vendor.id));
-        batch.set(docRef, { ...vendor, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-      });
-      await batch.commit();
-      console.log("✅ Seeded initial vendor partners in Firestore");
+      // Check & Seed Vendor Partners
+      const venSnap = await getDocs(collection(db, "vendor_partners"));
+      if (venSnap.empty) {
+        const batch = writeBatch(db);
+        SEED_VENDOR_PARTNERS.forEach((vendor) => {
+          const ref = doc(db, "vendor_partners", String(vendor.id));
+          batch.set(ref, { ...vendor, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        });
+        await batch.commit();
+        console.log("✅ Seeded initial vendor partners in Firestore (pharmacy-ecfa5)");
+      }
+    } catch (err) {
+      console.warn("ℹ️ Firestore remote sync deferred, using local memory store:", err.message);
     }
-  } else {
-    // Seed local memory store if empty
-    if (!localStore.medicines || localStore.medicines.length === 0) {
-      localStore.medicines = SEED_MEDICINES.map((m) => ({ ...m, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
-      localStore.counters.medicines = 7;
-    }
-    if (!localStore.delivery_partners || localStore.delivery_partners.length === 0) {
-      localStore.delivery_partners = SEED_DELIVERY_PARTNERS.map((d) => ({ ...d, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
-      localStore.counters.delivery_partners = 4;
-    }
-    if (!localStore.vendor_partners || localStore.vendor_partners.length === 0) {
-      localStore.vendor_partners = SEED_VENDOR_PARTNERS.map((v) => ({ ...v, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
-      localStore.counters.vendor_partners = 10;
-    }
-    await saveLocalStore();
   }
+
+  // Ensure local memory store fallback is seeded
+  if (!localStore.medicines || localStore.medicines.length === 0) {
+    localStore.medicines = SEED_MEDICINES.map((m) => ({ ...m, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
+    localStore.counters.medicines = 7;
+  }
+  if (!localStore.delivery_partners || localStore.delivery_partners.length === 0) {
+    localStore.delivery_partners = SEED_DELIVERY_PARTNERS.map((d) => ({ ...d, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
+    localStore.counters.delivery_partners = 4;
+  }
+  if (!localStore.vendor_partners || localStore.vendor_partners.length === 0) {
+    localStore.vendor_partners = SEED_VENDOR_PARTNERS.map((v) => ({ ...v, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
+    localStore.counters.vendor_partners = 10;
+  }
+  await saveLocalStore();
 }
 
 // Data Access API for Firestore (or Fallback Store)
 export const firestoreService = {
   // USERS
   async getUsers() {
-    if (isFirestoreConnected) {
-      const snap = await db.collection("users").get();
-      return snap.docs.map((doc) => ({ id: Number(doc.id) || doc.id, ...doc.data() }));
+    if (isFirestoreConnected && db) {
+      try {
+        const snap = await getDocs(collection(db, "users"));
+        if (!snap.empty) {
+          return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+        }
+      } catch (err) {}
     }
     return localStore.users;
   },
 
   async findUserByEmail(email) {
-    if (isFirestoreConnected) {
-      const snap = await db.collection("users").where("email", "==", email).get();
-      if (snap.empty) return null;
-      const doc = snap.docs[0];
-      return { id: Number(doc.id) || doc.id, ...doc.data() };
+    if (isFirestoreConnected && db) {
+      try {
+        const q = query(collection(db, "users"), where("email", "==", email.toLowerCase()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          return { id: Number(d.id) || d.id, ...d.data() };
+        }
+      } catch (err) {}
     }
     return localStore.users.find((u) => u.email.toLowerCase() === email.toLowerCase()) || null;
   },
 
   async findUserByPhone(phone) {
-    if (isFirestoreConnected) {
-      const snap = await db.collection("users").where("phone", "==", phone).get();
-      if (snap.empty) return null;
-      const doc = snap.docs[0];
-      return { id: Number(doc.id) || doc.id, ...doc.data() };
+    if (isFirestoreConnected && db) {
+      try {
+        const q = query(collection(db, "users"), where("phone", "==", phone));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          return { id: Number(d.id) || d.id, ...d.data() };
+        }
+      } catch (err) {}
     }
     return localStore.users.find((u) => u.phone === phone) || null;
   },
 
   async findUserById(id) {
-    if (isFirestoreConnected) {
-      const doc = await db.collection("users").doc(String(id)).get();
-      if (!doc.exists) return null;
-      return { id: Number(doc.id) || doc.id, ...doc.data() };
+    if (isFirestoreConnected && db) {
+      try {
+        const docRef = doc(db, "users", String(id));
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          return { id: Number(docSnap.id) || docSnap.id, ...docSnap.data() };
+        }
+      } catch (err) {}
     }
     return localStore.users.find((u) => String(u.id) === String(id)) || null;
   },
 
   async createUser(userData) {
     const now = new Date().toISOString();
-    if (isFirestoreConnected) {
-      const id = localStore.counters.users++;
-      const newUser = { id, ...userData, created_at: now, updated_at: now };
-      await db.collection("users").doc(String(id)).set(newUser);
-      return newUser;
-    }
     const id = localStore.counters.users++;
     const newUser = { id, ...userData, created_at: now, updated_at: now };
+
+    if (isFirestoreConnected && db) {
+      try {
+        await setDoc(doc(db, "users", String(id)), newUser);
+      } catch (err) {}
+    }
     localStore.users.push(newUser);
     await saveLocalStore();
     return newUser;
@@ -242,9 +253,10 @@ export const firestoreService = {
 
   async updateUser(id, updateData) {
     const now = new Date().toISOString();
-    if (isFirestoreConnected) {
-      await db.collection("users").doc(String(id)).update({ ...updateData, updated_at: now });
-      return this.findUserById(id);
+    if (isFirestoreConnected && db) {
+      try {
+        await updateDoc(doc(db, "users", String(id)), { ...updateData, updated_at: now });
+      } catch (err) {}
     }
     const idx = localStore.users.findIndex((u) => String(u.id) === String(id));
     if (idx !== -1) {
@@ -258,14 +270,14 @@ export const firestoreService = {
   // AUTH OTPS
   async createAuthOtp(otpData) {
     const now = new Date().toISOString();
-    if (isFirestoreConnected) {
-      const id = localStore.counters.auth_otps++;
-      const newOtp = { id, ...otpData, created_at: now };
-      await db.collection("auth_otps").doc(String(id)).set(newOtp);
-      return newOtp;
-    }
     const id = localStore.counters.auth_otps++;
     const newOtp = { id, ...otpData, created_at: now };
+
+    if (isFirestoreConnected && db) {
+      try {
+        await setDoc(doc(db, "auth_otps", String(id)), newOtp);
+      } catch (err) {}
+    }
     localStore.auth_otps.push(newOtp);
     await saveLocalStore();
     return newOtp;
@@ -273,16 +285,22 @@ export const firestoreService = {
 
   async findValidOtp(userId, purpose, code) {
     const now = new Date();
-    if (isFirestoreConnected) {
-      const snap = await db.collection("auth_otps")
-        .where("user_id", "==", Number(userId))
-        .where("purpose", "==", purpose)
-        .where("otp_code", "==", code)
-        .get();
-      if (snap.empty) return null;
-      const validDoc = snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }))
-        .find((o) => !o.used_at && new Date(o.expires_at) > now);
-      return validDoc || null;
+    if (isFirestoreConnected && db) {
+      try {
+        const q = query(
+          collection(db, "auth_otps"),
+          where("user_id", "==", Number(userId)),
+          where("purpose", "==", purpose),
+          where("otp_code", "==", code)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const validDoc = snap.docs
+            .map((d) => ({ id: Number(d.id) || d.id, ...d.data() }))
+            .find((o) => !o.used_at && new Date(o.expires_at) > now);
+          if (validDoc) return validDoc;
+        }
+      } catch (err) {}
     }
     return localStore.auth_otps.find(
       (o) => String(o.user_id) === String(userId) &&
@@ -295,9 +313,10 @@ export const firestoreService = {
 
   async markOtpUsed(id) {
     const now = new Date().toISOString();
-    if (isFirestoreConnected) {
-      await db.collection("auth_otps").doc(String(id)).update({ used_at: now });
-      return;
+    if (isFirestoreConnected && db) {
+      try {
+        await updateDoc(doc(db, "auth_otps", String(id)), { used_at: now });
+      } catch (err) {}
     }
     const otp = localStore.auth_otps.find((o) => String(o.id) === String(id));
     if (otp) {
@@ -308,27 +327,36 @@ export const firestoreService = {
 
   // MEDICINES
   async getMedicines() {
-    if (isFirestoreConnected) {
-      const snap = await db.collection("medicines").get();
-      return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+    if (isFirestoreConnected && db) {
+      try {
+        const snap = await getDocs(collection(db, "medicines"));
+        if (!snap.empty) {
+          return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+        }
+      } catch (err) {}
     }
     return localStore.medicines;
   },
 
   async getMedicineById(id) {
-    if (isFirestoreConnected) {
-      const doc = await db.collection("medicines").doc(String(id)).get();
-      if (!doc.exists) return null;
-      return { id: Number(doc.id) || doc.id, ...doc.data() };
+    if (isFirestoreConnected && db) {
+      try {
+        const docRef = doc(db, "medicines", String(id));
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          return { id: Number(docSnap.id) || docSnap.id, ...docSnap.data() };
+        }
+      } catch (err) {}
     }
     return localStore.medicines.find((m) => String(m.id) === String(id)) || null;
   },
 
   async updateMedicineStock(id, newStock) {
     const now = new Date().toISOString();
-    if (isFirestoreConnected) {
-      await db.collection("medicines").doc(String(id)).update({ stock: newStock, updated_at: now });
-      return;
+    if (isFirestoreConnected && db) {
+      try {
+        await updateDoc(doc(db, "medicines", String(id)), { stock: newStock, updated_at: now });
+      } catch (err) {}
     }
     const med = localStore.medicines.find((m) => String(m.id) === String(id));
     if (med) {
@@ -340,9 +368,10 @@ export const firestoreService = {
 
   async updateMedicineDiscount(id, discountPercent) {
     const now = new Date().toISOString();
-    if (isFirestoreConnected) {
-      await db.collection("medicines").doc(String(id)).update({ discount_percent: discountPercent, updated_at: now });
-      return;
+    if (isFirestoreConnected && db) {
+      try {
+        await updateDoc(doc(db, "medicines", String(id)), { discount_percent: discountPercent, updated_at: now });
+      } catch (err) {}
     }
     const med = localStore.medicines.find((m) => String(m.id) === String(id));
     if (med) {
@@ -354,19 +383,27 @@ export const firestoreService = {
 
   // DELIVERY PARTNERS
   async getDeliveryPartners() {
-    if (isFirestoreConnected) {
-      const snap = await db.collection("delivery_partners").get();
-      return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+    if (isFirestoreConnected && db) {
+      try {
+        const snap = await getDocs(collection(db, "delivery_partners"));
+        if (!snap.empty) {
+          return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+        }
+      } catch (err) {}
     }
     return localStore.delivery_partners;
   },
 
   async findDeliveryPartnerByPhone(phone) {
-    if (isFirestoreConnected) {
-      const snap = await db.collection("delivery_partners").where("phone", "==", phone).get();
-      if (snap.empty) return null;
-      const doc = snap.docs[0];
-      return { id: Number(doc.id) || doc.id, ...doc.data() };
+    if (isFirestoreConnected && db) {
+      try {
+        const q = query(collection(db, "delivery_partners"), where("phone", "==", phone));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          return { id: Number(d.id) || d.id, ...d.data() };
+        }
+      } catch (err) {}
     }
     return localStore.delivery_partners.find((d) => d.phone === phone) || null;
   },
@@ -384,58 +421,66 @@ export const firestoreService = {
       created_at: now,
       updated_at: now,
     };
-    if (isFirestoreConnected) {
-      await db.collection("delivery_partners").doc(String(id)).set(partner);
-    } else {
-      localStore.delivery_partners.push(partner);
-      await saveLocalStore();
+    if (isFirestoreConnected && db) {
+      try {
+        await setDoc(doc(db, "delivery_partners", String(id)), partner);
+      } catch (err) {}
     }
+    localStore.delivery_partners.push(partner);
+    await saveLocalStore();
     return partner;
   },
 
   async deleteDeliveryPartner(id) {
-    if (isFirestoreConnected) {
-      await db.collection("delivery_partners").doc(String(id)).update({ is_active: 0 });
-    } else {
-      const partner = localStore.delivery_partners.find((d) => String(d.id) === String(id));
-      if (partner) partner.is_active = 0;
-      await saveLocalStore();
+    if (isFirestoreConnected && db) {
+      try {
+        await updateDoc(doc(db, "delivery_partners", String(id)), { is_active: 0 });
+      } catch (err) {}
     }
+    const partner = localStore.delivery_partners.find((d) => String(d.id) === String(id));
+    if (partner) partner.is_active = 0;
+    await saveLocalStore();
   },
 
   async updateDeliveryPartnerCounts(id, activeDelta = 0, completedDelta = 0) {
     const now = new Date().toISOString();
-    if (isFirestoreConnected) {
-      const docRef = db.collection("delivery_partners").doc(String(id));
-      const doc = await docRef.get();
-      if (doc.exists) {
-        const cur = doc.data();
-        await docRef.update({
-          active_order_count: Math.max(0, (cur.active_order_count || 0) + activeDelta),
-          completed_order_count: Math.max(0, (cur.completed_order_count || 0) + completedDelta),
-          updated_at: now,
-        });
-      }
-    } else {
-      const partner = localStore.delivery_partners.find((d) => String(d.id) === String(id));
-      if (partner) {
-        partner.active_order_count = Math.max(0, partner.active_order_count + activeDelta);
-        partner.completed_order_count = Math.max(0, partner.completed_order_count + completedDelta);
-        partner.updated_at = now;
-        await saveLocalStore();
-      }
+    const partner = localStore.delivery_partners.find((d) => String(d.id) === String(id));
+    if (partner) {
+      partner.active_order_count = Math.max(0, partner.active_order_count + activeDelta);
+      partner.completed_order_count = Math.max(0, partner.completed_order_count + completedDelta);
+      partner.updated_at = now;
+      await saveLocalStore();
+    }
+    if (isFirestoreConnected && db) {
+      try {
+        const docRef = doc(db, "delivery_partners", String(id));
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const cur = docSnap.data();
+          await updateDoc(docRef, {
+            active_order_count: Math.max(0, (cur.active_order_count || 0) + activeDelta),
+            completed_order_count: Math.max(0, (cur.completed_order_count || 0) + completedDelta),
+            updated_at: now,
+          });
+        }
+      } catch (err) {}
     }
   },
 
   // VENDOR PARTNERS
   async getVendorPartners(vendorType = null) {
     let list = [];
-    if (isFirestoreConnected) {
-      let query = db.collection("vendor_partners");
-      if (vendorType) query = query.where("vendor_type", "==", vendorType);
-      const snap = await query.get();
-      list = snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
-    } else {
+    if (isFirestoreConnected && db) {
+      try {
+        let q = collection(db, "vendor_partners");
+        if (vendorType) q = query(collection(db, "vendor_partners"), where("vendor_type", "==", vendorType));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          list = snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+        }
+      } catch (err) {}
+    }
+    if (list.length === 0) {
       list = localStore.vendor_partners;
       if (vendorType) {
         list = list.filter((v) => v.vendor_type === vendorType);
@@ -445,10 +490,14 @@ export const firestoreService = {
   },
 
   async findVendorById(id) {
-    if (isFirestoreConnected) {
-      const doc = await db.collection("vendor_partners").doc(String(id)).get();
-      if (!doc.exists) return null;
-      return { id: Number(doc.id) || doc.id, ...doc.data() };
+    if (isFirestoreConnected && db) {
+      try {
+        const docRef = doc(db, "vendor_partners", String(id));
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          return { id: Number(docSnap.id) || docSnap.id, ...docSnap.data() };
+        }
+      } catch (err) {}
     }
     return localStore.vendor_partners.find((v) => String(v.id) === String(id)) || null;
   },
@@ -456,22 +505,25 @@ export const firestoreService = {
   // ORDERS & ORDER ITEMS
   async getOrders(userId = null) {
     let orderRows = [];
-    if (isFirestoreConnected) {
-      let query = db.collection("orders");
-      if (userId) query = query.where("user_id", "==", Number(userId));
-      const snap = await query.get();
-      orderRows = snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
-    } else {
+    if (isFirestoreConnected && db) {
+      try {
+        let q = collection(db, "orders");
+        if (userId) q = query(collection(db, "orders"), where("user_id", "==", Number(userId)));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          orderRows = snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+        }
+      } catch (err) {}
+    }
+    if (orderRows.length === 0) {
       orderRows = localStore.orders;
       if (userId) {
         orderRows = orderRows.filter((o) => String(o.user_id) === String(userId));
       }
     }
 
-    // Sort descending by created_at
     orderRows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    // Attach user & delivery partner info and items
     const users = await this.getUsers();
     const deliveryPartners = await this.getDeliveryPartners();
     const allItems = await this.getAllOrderItems();
@@ -492,9 +544,13 @@ export const firestoreService = {
   },
 
   async getAllOrderItems() {
-    if (isFirestoreConnected) {
-      const snap = await db.collection("order_items").get();
-      return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+    if (isFirestoreConnected && db) {
+      try {
+        const snap = await getDocs(collection(db, "order_items"));
+        if (!snap.empty) {
+          return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+        }
+      } catch (err) {}
     }
     return localStore.order_items;
   },
@@ -543,20 +599,21 @@ export const firestoreService = {
       createdItems.push(newItem);
     }
 
-    if (isFirestoreConnected) {
-      await db.collection("orders").doc(String(orderId)).set(newOrder);
-      const batch = db.batch();
-      createdItems.forEach((it) => {
-        batch.set(db.collection("order_items").doc(String(it.id)), it);
-      });
-      await batch.commit();
-    } else {
-      localStore.orders.push(newOrder);
-      localStore.order_items.push(...createdItems);
-      await saveLocalStore();
+    if (isFirestoreConnected && db) {
+      try {
+        await setDoc(doc(db, "orders", String(orderId)), newOrder);
+        const batch = writeBatch(db);
+        createdItems.forEach((it) => {
+          batch.set(doc(db, "order_items", String(it.id)), it);
+        });
+        await batch.commit();
+      } catch (err) {}
     }
 
-    // Update partner active order count if assigned
+    localStore.orders.push(newOrder);
+    localStore.order_items.push(...createdItems);
+    await saveLocalStore();
+
     if (newOrder.delivery_partner_id) {
       await this.updateDeliveryPartnerCounts(newOrder.delivery_partner_id, 1, 0);
     }
@@ -571,21 +628,22 @@ export const firestoreService = {
 
     const oldStatus = existingOrder.status;
 
-    if (isFirestoreConnected) {
-      await db.collection("orders").doc(String(id)).update({
-        status: newStatus,
-        updated_at: now,
-      });
-    } else {
-      const o = localStore.orders.find((ord) => String(ord.id) === String(id));
-      if (o) {
-        o.status = newStatus;
-        o.updated_at = now;
-        await saveLocalStore();
-      }
+    if (isFirestoreConnected && db) {
+      try {
+        await updateDoc(doc(db, "orders", String(id)), {
+          status: newStatus,
+          updated_at: now,
+        });
+      } catch (err) {}
     }
 
-    // Adjust delivery partner active/completed order counters
+    const o = localStore.orders.find((ord) => String(ord.id) === String(id));
+    if (o) {
+      o.status = newStatus;
+      o.updated_at = now;
+      await saveLocalStore();
+    }
+
     if (existingOrder.delivery_partner_id) {
       if (oldStatus !== "Delivered" && newStatus === "Delivered") {
         await this.updateDeliveryPartnerCounts(existingOrder.delivery_partner_id, -1, 1);
@@ -600,12 +658,17 @@ export const firestoreService = {
   // PROCUREMENT ORDERS
   async getProcurementOrders(source = null) {
     let orderRows = [];
-    if (isFirestoreConnected) {
-      let query = db.collection("procurement_orders");
-      if (source) query = query.where("source", "==", source);
-      const snap = await query.get();
-      orderRows = snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
-    } else {
+    if (isFirestoreConnected && db) {
+      try {
+        let q = collection(db, "procurement_orders");
+        if (source) q = query(collection(db, "procurement_orders"), where("source", "==", source));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          orderRows = snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+        }
+      } catch (err) {}
+    }
+    if (orderRows.length === 0) {
       orderRows = localStore.procurement_orders;
       if (source) {
         orderRows = orderRows.filter((p) => p.source === source);
@@ -645,9 +708,13 @@ export const firestoreService = {
   },
 
   async getAllProcurementOrderItems() {
-    if (isFirestoreConnected) {
-      const snap = await db.collection("procurement_order_items").get();
-      return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+    if (isFirestoreConnected && db) {
+      try {
+        const snap = await getDocs(collection(db, "procurement_order_items"));
+        if (!snap.empty) {
+          return snap.docs.map((d) => ({ id: Number(d.id) || d.id, ...d.data() }));
+        }
+      } catch (err) {}
     }
     return localStore.procurement_order_items;
   },
@@ -686,18 +753,20 @@ export const firestoreService = {
       createdItems.push(newItem);
     }
 
-    if (isFirestoreConnected) {
-      await db.collection("procurement_orders").doc(String(orderId)).set(newOrder);
-      const batch = db.batch();
-      createdItems.forEach((it) => {
-        batch.set(db.collection("procurement_order_items").doc(String(it.id)), it);
-      });
-      await batch.commit();
-    } else {
-      localStore.procurement_orders.push(newOrder);
-      localStore.procurement_order_items.push(...createdItems);
-      await saveLocalStore();
+    if (isFirestoreConnected && db) {
+      try {
+        await setDoc(doc(db, "procurement_orders", String(orderId)), newOrder);
+        const batch = writeBatch(db);
+        createdItems.forEach((it) => {
+          batch.set(doc(db, "procurement_order_items", String(it.id)), it);
+        });
+        await batch.commit();
+      } catch (err) {}
     }
+
+    localStore.procurement_orders.push(newOrder);
+    localStore.procurement_order_items.push(...createdItems);
+    await saveLocalStore();
 
     const allPos = await this.getProcurementOrders();
     return allPos.find((po) => String(po.id) === String(orderId));
@@ -719,12 +788,14 @@ export const firestoreService = {
       created_at: now,
     };
 
-    if (isFirestoreConnected) {
-      await db.collection("discount_campaigns").doc(String(campaignId)).set(newCampaign);
-    } else {
-      localStore.discount_campaigns.push(newCampaign);
-      await saveLocalStore();
+    if (isFirestoreConnected && db) {
+      try {
+        await setDoc(doc(db, "discount_campaigns", String(campaignId)), newCampaign);
+      } catch (err) {}
     }
+
+    localStore.discount_campaigns.push(newCampaign);
+    await saveLocalStore();
 
     for (const item of itemsData) {
       await this.updateMedicineDiscount(item.medicine_id, item.applied_discount_percent);
