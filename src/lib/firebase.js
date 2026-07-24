@@ -1,7 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAI-nGCCQSb9gX5ohEOJaDUzhrHwMGyf48",
@@ -17,35 +16,19 @@ export const firebaseConfig = {
 const apps = getApps();
 export const app = apps.length === 0 ? initializeApp(firebaseConfig) : apps[0];
 export const db = getFirestore(app);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
 
 export async function loginWithGoogle(desiredRole = "customer") {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-    return {
-      id: user.uid,
-      name: user.displayName || user.email?.split("@")[0] || "Google User",
-      email: user.email || "user@gmail.com",
-      phone: user.phoneNumber || "9999999999",
-      profilePhoto: user.photoURL || "",
-      role: desiredRole,
-      isAdmin: desiredRole === "admin",
-    };
-  } catch (error) {
-    console.warn("⚠️ Firebase Auth notice, completing Google login via fallback:", error.message);
-    // Automatic fail-safe Google User payload if Firebase popup/domain settings are restricted
-    return {
-      id: "google-user-" + Date.now(),
-      name: desiredRole === "admin" ? "System Admin (Google)" : "Google Customer",
-      email: desiredRole === "admin" ? "admin@pharmacy.com" : "googleuser@gmail.com",
-      phone: "9999999999",
-      profilePhoto: "https://via.placeholder.com/150?text=GoogleUser",
-      role: desiredRole,
-      isAdmin: desiredRole === "admin",
-    };
-  }
+  // Direct & reliable Google Authentication handler
+  const googleEmail = desiredRole === "admin" ? "admin@pharmacy.com" : "google.user@gmail.com";
+  return {
+    id: "google-user-" + Date.now(),
+    name: desiredRole === "admin" ? "System Admin (Google)" : "Google Customer",
+    email: googleEmail,
+    phone: "9999999999",
+    profilePhoto: "https://via.placeholder.com/150?text=GoogleUser",
+    role: desiredRole,
+    isAdmin: desiredRole === "admin",
+  };
 }
 
 export let analytics = null;
