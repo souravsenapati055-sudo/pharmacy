@@ -15,6 +15,7 @@ import admin from "firebase-admin";
 import dotenv from "dotenv";
 import fs from "node:fs/promises";
 import path from "node:path";
+import bcrypt from "bcryptjs";
 import { fileURLToPath } from "node:url";
 
 dotenv.config();
@@ -122,8 +123,45 @@ const SEED_VENDOR_PARTNERS = [
 ];
 
 export async function initializeDatabase() {
+  const defaultAdminPasswordHash = await bcrypt.hash("admin123", 10);
+  const defaultCustomerPasswordHash = await bcrypt.hash("customer123", 10);
+
+  const SEED_USERS = [
+    {
+      id: 1,
+      role: "admin",
+      name: "System Admin",
+      email: "admin@pharmacy.com",
+      phone: "9999999999",
+      password_hash: defaultAdminPasswordHash,
+      business_name: "Pharmacy Store HQ",
+      business_address: "123 Healthcare Blvd",
+      verification_document: "DOC-ADMIN-001",
+    },
+    {
+      id: 2,
+      role: "customer",
+      name: "Demo Customer",
+      email: "customer@pharmacy.com",
+      phone: "9876543210",
+      password_hash: defaultCustomerPasswordHash,
+    },
+  ];
+
   if (isFirestoreConnected && db) {
     try {
+      // Check & Seed Users in Firestore
+      const userSnap = await getDocs(collection(db, "users"));
+      if (userSnap.empty) {
+        const batch = writeBatch(db);
+        SEED_USERS.forEach((u) => {
+          const ref = doc(db, "users", String(u.id));
+          batch.set(ref, { ...u, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        });
+        await batch.commit();
+        console.log("✅ Seeded default admin and customer accounts in Firestore");
+      }
+
       // Check & Seed Medicines in Firestore
       const medSnap = await getDocs(collection(db, "medicines"));
       if (medSnap.empty) {
@@ -165,6 +203,10 @@ export async function initializeDatabase() {
   }
 
   // Ensure local memory store fallback is seeded
+  if (!localStore.users || localStore.users.length === 0) {
+    localStore.users = SEED_USERS.map((u) => ({ ...u, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
+    localStore.counters.users = 3;
+  }
   if (!localStore.medicines || localStore.medicines.length === 0) {
     localStore.medicines = SEED_MEDICINES.map((m) => ({ ...m, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
     localStore.counters.medicines = 7;
