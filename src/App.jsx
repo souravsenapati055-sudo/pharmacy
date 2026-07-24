@@ -14,10 +14,9 @@ import Cart from "./pages/Cart";
 import Orders from "./pages/Orders";
 import Dashboard from "./Dashboard";
 import DeliveryTeam from "./DeliveryTeam";
-import OrderFromSeller from "./components/OrderFromSeller"; // Import the new component
-import Profile from "./pages/Profile"; // Import Profile page
+import OrderFromSeller from "./components/OrderFromSeller";
+import Profile from "./pages/Profile";
 
-// Import admin page components (create these if needed)
 import Analytics from "./pages/Analytics";
 import Alerts from "./pages/Alerts";
 import AIInsights from "./pages/AIInsights";
@@ -68,25 +67,25 @@ function AppContent() {
     let ignore = false;
 
     async function loadAppData() {
-      if (!user) {
-        setMedicines([]);
-        setOrders([]);
-        setDeliveryPeople([]);
-        return;
-      }
-
       setDataLoading(true);
       try {
-        const [medicineData, deliveryData, orderData] = await Promise.all([
-          fetchMedicines(),
-          fetchDeliveryPartners(),
-          fetchOrders(user.role === "admin" ? undefined : user.id),
-        ]);
+        const medicineData = await fetchMedicines();
+        if (!ignore) setMedicines(medicineData);
 
-        if (!ignore) {
-          setMedicines(medicineData);
-          setDeliveryPeople(deliveryData);
-          setOrders(orderData);
+        if (user) {
+          const [deliveryData, orderData] = await Promise.all([
+            fetchDeliveryPartners(),
+            fetchOrders(user.role === "admin" ? undefined : user.id),
+          ]);
+          if (!ignore) {
+            setDeliveryPeople(deliveryData);
+            setOrders(orderData);
+          }
+        } else {
+          if (!ignore) {
+            setDeliveryPeople([]);
+            setOrders([]);
+          }
         }
       } catch (error) {
         console.error("Failed to load app data:", error);
@@ -157,7 +156,7 @@ function AppContent() {
         <Route path="/login/:role" element={<LoginModern setUser={setUser} />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/signup/:role" element={<SignupModern setUser={setUser} />} />
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<Landing medicines={medicines} />} />
 
         {/* Customer Routes */}
         <Route
@@ -263,20 +262,10 @@ function AppContent() {
 
         {/* Admin AI Insights Route */}
         <Route
-          path="/admin/ai-recommendations"
+          path="/admin/ai-insights"
           element={
             <ProtectedRoute user={user} requiredRole="admin">
               <AIInsights />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Admin Order from Seller Route */}
-        <Route
-          path="/admin/order-from-seller"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <OrderFromSeller medicines={medicines} />
             </ProtectedRoute>
           }
         />
@@ -316,41 +305,36 @@ function AppContent() {
           path="/admin/generate-report"
           element={
             <ProtectedRoute user={user} requiredRole="admin">
-              <GenerateReport orders={orders} medicines={medicines} />
+              <GenerateReport />
             </ProtectedRoute>
           }
         />
 
-        {/* Delivery Team Management Route (Admin only) */}
+        {/* Admin Delivery Team Route */}
         <Route
-          path="/delivery-team"
+          path="/admin/delivery-team"
           element={
             <ProtectedRoute user={user} requiredRole="admin">
               <DeliveryTeam
                 deliveryPeople={deliveryPeople}
                 setDeliveryPeople={setDeliveryPeople}
-                orders={orders}
-                setOrders={setOrders}
               />
             </ProtectedRoute>
           }
         />
 
-        {/* Catch all - redirect to home or landing based on auth */}
+        {/* Admin Procurement / Order from Seller Route */}
         <Route
-          path="*"
+          path="/admin/order-from-seller"
           element={
-            user ? (
-              user.role === "admin" ? (
-                <Navigate to="/admin" replace />
-              ) : (
-                <Navigate to="/home" replace />
-              )
-            ) : (
-              <Navigate to="/" replace />
-            )
+            <ProtectedRoute user={user} requiredRole="admin">
+              <OrderFromSeller medicines={medicines} />
+            </ProtectedRoute>
           }
         />
+
+        {/* Catch-all Route - Redirect to landing page */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
@@ -358,12 +342,7 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
+    <BrowserRouter>
       <AppContent />
     </BrowserRouter>
   );
