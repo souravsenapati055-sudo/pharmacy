@@ -37,7 +37,7 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
   }, []);
 
   const customerOrders = useMemo(
-    () => (orders || []).filter((order) => order.userId && user?.id && order.userId === user.id),
+    () => (orders || []).filter((order) => order.userId && user?.id && String(order.userId) === String(user.id)),
     [orders, user]
   );
 
@@ -377,9 +377,9 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
           {openOrders.map((order) => (
             <div key={order.id} style={{ padding: "10px 0", borderBottom: "1px solid #e2e8f0" }}>
               <div><b>Order #{order.id}</b> - {order.status}</div>
-              <div>Delivery: {order.deliveryPartner || "Not assigned yet"}</div>
-              <div>Payment: {order.paymentMethod?.toUpperCase()} / {order.paymentStatus}</div>
-              <div>Items: {order.items.map((item) => item.name).join(", ")}</div>
+              <div>Delivery: {order.deliveryPartner || order.delivery_partner_name || "Not assigned yet"}</div>
+              <div>Payment: {(order.paymentMethod || order.payment_method)?.toUpperCase()} / {order.paymentStatus || order.payment_status || "pending"}</div>
+              <div>Items: {(order.items || []).map((item) => item.name || item.medicine_name || "Medicine").join(", ")}</div>
               <div style={{ color: "#64748b" }}>Total Rs {order.total}</div>
             </div>
           ))}
@@ -428,7 +428,7 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
               }}
             >
               <img
-                src={medicine.image || "https://via.placeholder.com/150"}
+                src={medicine.image || medicine.image_url || "https://via.placeholder.com/150"}
                 alt={medicine.name}
                 style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 12, marginBottom: 12 }}
               />
@@ -440,7 +440,7 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
               <div style={{ fontSize: 16, marginBottom: 8 }}>
                 Rs {medicine.price}
                 <span style={{ color: "#22c55e", fontWeight: 600 }}>
-                  {medicine.discount ? ` -${medicine.discount}%` : ""}
+                  {medicine.discount ? ` -${medicine.discount}%` : medicine.discount_percent ? ` -${medicine.discount_percent}%` : ""}
                 </span>
               </div>
               <div style={{ color: medicine.stock > 10 ? "#16a34a" : "#dc2626", fontSize: 14 }}>

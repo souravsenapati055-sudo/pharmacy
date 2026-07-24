@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-export default function Orders({ orders }) {
+export default function Orders({ orders = [] }) {
   const currentOrders = useMemo(
     () => orders?.filter((order) => order.status?.toLowerCase() !== "delivered"),
     [orders]
@@ -29,6 +29,7 @@ export default function Orders({ orders }) {
 
   const OrderCard = ({ order }) => {
     const statusStyle = getStatusStyle(order.status);
+    const itemsList = order.items || [];
 
     return (
       <div style={{ background: "#fff", borderRadius: "16px", padding: "18px", marginBottom: "16px", boxShadow: "0 6px 18px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", gap: "10px", border: "1px solid #f1f5f9" }}>
@@ -40,28 +41,28 @@ export default function Orders({ orders }) {
         </div>
 
         <div style={{ fontSize: "0.95rem", color: "#334155" }}>
-          <b>Items:</b> {order.items.map((item) => `${item.name} (x${item.qty})`).join(", ")}
+          <b>Items:</b> {itemsList.map((item) => `${item.name || item.medicine_name || "Medicine"} (x${item.qty || item.quantity || 1})`).join(", ")}
         </div>
 
         {order.address && (
           <div style={{ fontSize: "0.9rem", color: "#64748b" }}>
-            Address: {order.address.label}, {order.address.details}
+            Address: {order.address.label || "Shipping Address"}, {order.address.details || order.address}
           </div>
         )}
 
         <div style={{ fontSize: "0.9rem", color: "#64748b" }}>
-          Payment: <b>{order.paymentMethod?.toUpperCase()}</b> / {order.paymentStatus}
+          Payment: <b>{order.paymentMethod?.toUpperCase() || order.payment_method?.toUpperCase()}</b> / {order.paymentStatus || order.payment_status || "pending"}
         </div>
 
-        {order.deliveryPartner && (
+        {(order.deliveryPartner || order.delivery_partner_name) && (
           <div style={{ fontSize: "0.9rem", color: "#64748b" }}>
-            Delivery by <b>{order.deliveryPartner}</b>{order.deliveryPartnerPhone ? ` (${order.deliveryPartnerPhone})` : ""}
+            Delivery by <b>{order.deliveryPartner || order.delivery_partner_name}</b>{(order.deliveryPartnerPhone || order.delivery_partner_phone) ? ` (${order.deliveryPartnerPhone || order.delivery_partner_phone})` : ""}
           </div>
         )}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px", borderTop: "1px dashed #e2e8f0", paddingTop: "10px" }}>
           <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>
-            {new Date(order.createdAt).toLocaleString()}
+            {order.createdAt ? new Date(order.createdAt).toLocaleString() : order.created_at ? new Date(order.created_at).toLocaleString() : "Recently"}
           </div>
 
           <div style={{ fontWeight: "700", color: "#0F4454" }}>
@@ -84,7 +85,7 @@ export default function Orders({ orders }) {
     );
   };
 
-  const Section = ({ title, color, ordersList, emptyText }) => (
+  const Section = ({ title, color, ordersList = [], emptyText }) => (
     <div style={{ marginBottom: "32px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
         <h3 style={{ color, margin: 0 }}>{title}</h3>
@@ -104,13 +105,22 @@ export default function Orders({ orders }) {
   );
 
   return (
-    <div style={{ maxWidth: "800px", margin: "32px auto", padding: "0 16px" }}>
-      <h2 style={{ color: "#0F4454", marginBottom: "24px", fontWeight: "700" }}>
-        Your Orders
-      </h2>
+    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "24px" }}>
+      <h2 style={{ color: "#0F4454", marginBottom: "24px" }}>Order Tracking</h2>
 
-      <Section title="Current Orders" color="#f59e0b" ordersList={currentOrders || []} emptyText="No active orders right now." />
-      <Section title="Delivered Orders" color="#22c55e" ordersList={deliveredOrders || []} emptyText="No delivered orders yet." />
+      <Section
+        title="Active Orders"
+        color="#0F4454"
+        ordersList={currentOrders}
+        emptyText="No active orders. Add items to your cart to place an order."
+      />
+
+      <Section
+        title="Delivered Orders"
+        color="#155724"
+        ordersList={deliveredOrders}
+        emptyText="No delivered orders yet."
+      />
     </div>
   );
 }
