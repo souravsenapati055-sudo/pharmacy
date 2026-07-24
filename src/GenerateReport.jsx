@@ -54,6 +54,7 @@ export default function GenerateReport() {
   const exportRows = () => {
     if (!reportData?.rows?.length) return;
 
+    const title = reportData?.title || "Pharmacy Report";
     const headers = Object.keys(reportData.rows[0]);
     const escapeCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const csv = [
@@ -94,149 +95,146 @@ export default function GenerateReport() {
     let extension;
 
     if (format === "excel") {
-      const table = `
-        <table>
-          <thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead>
-          <tbody>
-            ${reportData.rows
-              .map(
-                (row) =>
-                  `<tr>${headers.map((header) => `<td>${String(row[header] ?? "")}</td>`).join("")}</tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>
-      `;
-      blob = new Blob([table], { type: "application/vnd.ms-excel;charset=utf-8;" });
-      extension = "xls";
-    } else {
       blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      extension = format;
+      extension = "csv";
+    } else {
+      blob = new Blob([JSON.stringify(reportData, null, 2)], {
+        type: "application/json;charset=utf-8;",
+      });
+      extension = "json";
     }
 
-    const fileName = `${reportType}-report-${dateRange}.${extension}`;
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = fileName;
+    link.download = `${reportData.title.toLowerCase().replace(/\s+/g, "_")}_${new Date()
+      .toISOString()
+      .slice(0, 10)}.${extension}`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const title = reportData?.title || "Report";
-
   return (
-    <div className="generate-report-container">
+    <div className="report-container">
       <div className="report-header">
-        <h1>Generate Report</h1>
-        <p>Create report previews from current MySQL data</p>
+        <h1>Report Generator</h1>
+        <p>Select report criteria and click generate to review data before export.</p>
       </div>
 
-      <div className="report-content">
-        <div className="report-form">
-          <h2>Report Settings</h2>
+      <div className="report-card">
+        <h2>Report Options</h2>
 
+        <div className="form-grid">
           <div className="form-group">
-            <label>Report Type:</label>
-            <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="report-select">
-              <option value="sales">Sales Report</option>
-              <option value="inventory">Inventory Report</option>
-              <option value="orders">Orders Report</option>
-              <option value="customers">Customer Report</option>
-              <option value="expiry">Expiry Style Inventory Report</option>
+            <label>Report Type</label>
+            <select value={reportType} onChange={(e) => setReportType(e.target.value)}>
+              <option value="sales">Sales & Revenue</option>
+              <option value="inventory">Inventory & Stock</option>
+              <option value="orders">Orders History</option>
+              <option value="customers">Customers Summary</option>
+              <option value="expiry">Medicine Expiry Alert</option>
             </select>
           </div>
 
           <div className="form-group">
-            <label>Date Range:</label>
-            <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="report-select">
+            <label>Date Range</label>
+            <select value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
-              <option value="weekly">Last 7 Days</option>
-              <option value="monthly">Last 30 Days</option>
-              <option value="quarterly">Last 3 Months</option>
-              <option value="yearly">Last 12 Months</option>
+              <option value="weekly">This Week</option>
+              <option value="monthly">This Month</option>
+              <option value="quarterly">This Quarter</option>
+              <option value="yearly">This Year</option>
               <option value="custom">Custom Range</option>
             </select>
           </div>
 
           {dateRange === "custom" && (
-            <div className="date-range">
+            <>
               <div className="form-group">
-                <label>Start Date:</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="date-input" />
+                <label>Start Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
               </div>
+
               <div className="form-group">
-                <label>End Date:</label>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="date-input" />
+                <label>End Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
               </div>
-            </div>
+            </>
           )}
 
           <div className="form-group">
-            <label>Export Format:</label>
-            <div className="format-buttons">
-              {["pdf", "excel", "csv"].map((value) => (
-                <button key={value} className={`format-btn ${format === value ? "active" : ""}`} onClick={() => setFormat(value)}>
-                  {value.toUpperCase()}
-                </button>
-              ))}
-            </div>
+            <label>Format</label>
+            <select value={format} onChange={(e) => setFormat(e.target.value)}>
+              <option value="pdf">PDF (Printable)</option>
+              <option value="excel">Excel (CSV)</option>
+              <option value="json">JSON</option>
+            </select>
           </div>
+        </div>
 
-          <button onClick={handleGenerateReport} className="generate-btn" disabled={generating}>
-            {generating ? "Generating..." : `Generate ${title}`}
+        <div className="button-group">
+          <button
+            className="btn btn-primary"
+            onClick={handleGenerateReport}
+            disabled={generating}
+          >
+            {generating ? "Loading..." : "Generate Preview"}
           </button>
           <button
+            className="btn btn-secondary"
             onClick={exportRows}
-            className="generate-btn"
-            disabled={generating || !reportData?.rows?.length}
-            style={{ marginTop: 10 }}
+            disabled={!reportData?.rows?.length}
           >
-            Export {format.toUpperCase()}
+            Export Report
           </button>
         </div>
+      </div>
 
-        <div className="report-preview">
-          <h2>Report Preview</h2>
-          <div className="preview-content">
-            <h3>{title}</h3>
-            <p className="preview-date">Generated on {reportData ? new Date(reportData.generatedOn).toLocaleString() : "..."}</p>
-            <div className="preview-stats">
-              <div className="stat">
-                <span>Total Records:</span>
-                <strong>{reportData?.totalRecords || 0}</strong>
-              </div>
-            </div>
+      <div className="report-card">
+        <h2>Report Preview</h2>
+        {reportData ? (
+          <div>
+            <p className="preview-meta">
+              Showing {reportData.totalRecords} records for {reportData.title} ({reportData.dateRange})
+            </p>
 
-            <div className="preview-table">
-              <table>
-                <thead>
-                  <tr>
-                    {reportData?.rows?.[0]
-                      ? Object.keys(reportData.rows[0]).map((key) => <th key={key}>{key}</th>)
-                      : <th>No data</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportData?.rows?.length ? (
-                    reportData.rows.slice(0, 8).map((row, index) => (
+            {reportData.rows?.length > 0 ? (
+              <div style={{ overflowX: "auto" }}>
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      {Object.keys(reportData.rows[0]).map((header) => (
+                        <th key={header}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportData.rows.map((row, index) => (
                       <tr key={index}>
-                        {Object.values(row).map((value, cellIndex) => (
-                          <td key={cellIndex}>{String(value)}</td>
+                        {Object.keys(row).map((header) => (
+                          <td key={header}>{String(row[header] ?? "")}</td>
                         ))}
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td>No report data available</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>No records found for the selected filter.</p>
+            )}
           </div>
-        </div>
+        ) : (
+          <p>Click "Generate Preview" to inspect the report table before downloading.</p>
+        )}
       </div>
     </div>
   );
