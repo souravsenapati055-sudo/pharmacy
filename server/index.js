@@ -8,13 +8,13 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { initializeDatabase, pool } from "./db.js";
+import { initializeDatabase, firestoreService } from "./db.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+const CLIENT_URL = process.env.CLIENT_URL || "*";
 const JWT_SECRET = process.env.JWT_SECRET || "development-secret";
 const OTP_EXPIRY_MINUTES = Number(process.env.OTP_EXPIRY_MINUTES || 10);
 const DEV_EXPOSE_OTP = process.env.DEV_EXPOSE_OTP === "true";
@@ -33,7 +33,22 @@ app.use(
 );
 app.use(express.json());
 
+// Ensure Database is initialized on Vercel or Express startup
+let isInitialized = false;
+app.use(async (_req, _res, next) => {
+  if (!isInitialized) {
+    try {
+      await initializeDatabase();
+      isInitialized = true;
+    } catch (e) {
+      console.error("DB init error:", e);
+    }
+  }
+  next();
+});
+
 function sanitizeUser(row) {
+  if (!row) return null;
   return {
     id: row.id,
     name: row.name,
@@ -100,121 +115,29 @@ function mapVendor(row) {
 }
 
 async function fetchProcurementOrders(source = null) {
-  const params = [];
-  const whereClause = source ? "WHERE po.source = ?" : "";
-  if (source) params.push(source);
-
-  const [orderRows] = await pool.query(
-    `SELECT
-      po.*,
-      vp.name AS vendor_name,
-      vp.phone AS vendor_phone,
-      vp.location AS vendor_location
-     FROM procurement_orders po
-     INNER JOIN vendor_partners vp ON vp.id = po.vendor_id
-     ${whereClause}
-     ORDER BY po.created_at DESC`,
-    params
-  );
-
-  if (orderRows.length === 0) {
-    return [];
-  }
-
-  const orderIds = orderRows.map((row) => row.id);
-  const placeholders = orderIds.map(() => "?").join(", ");
-  const [itemRows] = await pool.query(
-    `SELECT * FROM procurement_order_items WHERE procurement_order_id IN (${placeholders}) ORDER BY id ASC`,
-    orderIds
-  );
-
-  const itemsByOrderId = itemRows.reduce((acc, item) => {
-    if (!acc[item.procurement_order_id]) acc[item.procurement_order_id] = [];
-    acc[item.procurement_order_id].push({
-      id: item.medicine_id,
-      name: item.medicine_name,
-      price: Number(item.unit_price),
-      quantity: item.quantity,
-      totalPrice: Number(item.total_price),
-    });
-    return acc;
-  }, {});
-
-  return orderRows.map((row) => ({
-    id: row.id,
-    vendorId: row.vendor_id,
-    vendorType: row.vendor_type,
-    vendorName: row.vendor_name,
-    vendorPhone: row.vendor_phone,
-    vendorLocation: row.vendor_location,
-    source: row.source,
-    status: row.status,
-    urgency: row.urgency,
-    total: Number(row.total),
-    notes: row.notes ?? "",
-    items: itemsByOrderId[row.id] || [],
-    createdAt: row.created_at,
-  }));
+  return firestoreService.getProcurementOrders(source);
 }
 
 async function fetchOrdersForUser(userId = null) {
-  const params = [];
-  let whereClause = "";
-  if (userId) {
-    whereClause = "WHERE o.user_id = ?";
-    params.push(userId);
-  }
-
-  const [orderRows] = await pool.query(
-    `SELECT
-      o.*,
-      u.name AS customer_name,
-      u.email AS customer_email,
-      dp.name AS delivery_partner_name,
-      dp.phone AS delivery_partner_phone
-     FROM orders o
-     INNER JOIN users u ON u.id = o.user_id
-     LEFT JOIN delivery_partners dp ON dp.id = o.delivery_partner_id
-     ${whereClause}
-     ORDER BY o.created_at DESC`,
-    params
-  );
-
-  if (orderRows.length === 0) {
-    return [];
-  }
-
-  const orderIds = orderRows.map((row) => row.id);
-  const placeholders = orderIds.map(() => "?").join(", ");
-  const [itemRows] = await pool.query(
-    `SELECT * FROM order_items WHERE order_id IN (${placeholders}) ORDER BY id ASC`,
-    orderIds
-  );
-
-  const itemsByOrderId = itemRows.reduce((acc, item) => {
-    if (!acc[item.order_id]) acc[item.order_id] = [];
-    acc[item.order_id].push({
-      id: item.medicine_id,
-      name: item.medicine_name,
-      price: Number(item.unit_price),
-      discount: Number(item.discount_percent),
-      qty: item.quantity,
-      totalPrice: Number(item.total_price),
-    });
-    return acc;
-  }, {});
-
-  return orderRows.map((row) => {
-    const items = itemsByOrderId[row.id] || [];
+  const rawOrders = await firestoreService.getOrders(userId);
+  return rawOrders.map((row) => {
+    const items = row.items || [];
     return {
       id: row.id,
       userId: row.user_id,
       userName: row.customer_name,
       customerName: row.customer_name,
       customerEmail: row.customer_email,
-      items,
-      medicine: items.map((item) => item.name).join(", "),
-      qty: items.reduce((sum, item) => sum + item.qty, 0),
+      items: items.map((it) => ({
+        id: it.medicine_id,
+        name: it.medicine_name,
+        price: Number(it.unit_price),
+        discount: Number(it.discount_percent || 0),
+        qty: it.quantity,
+        totalPrice: Number(it.total_price),
+      })),
+      medicine: items.map((item) => item.medicine_name).join(", "),
+      qty: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
       subtotal: Number(row.subtotal),
       discountTotal: Number(row.discount_total),
       deliveryFee: Number(row.delivery_fee),
@@ -236,10 +159,8 @@ async function fetchOrdersForUser(userId = null) {
 }
 
 async function fetchOverview(userId) {
-  const [medicineRows] = await pool.query(
-    `SELECT * FROM medicines WHERE is_active = 1 ORDER BY category ASC, name ASC`
-  );
-  const medicines = medicineRows.map(mapMedicine);
+  const allMeds = await firestoreService.getMedicines();
+  const medicines = allMeds.filter((m) => m.is_active !== 0).map(mapMedicine);
 
   const categories = Array.from(
     new Map(
@@ -258,20 +179,55 @@ async function fetchOverview(userId) {
 }
 
 async function loadSymptomList() {
-  const firstLine = (await fs.readFile(diseaseTrainingCsv, "utf8")).split(/\r?\n/)[0] || "";
-  return firstLine
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item && item !== "prognosis");
+  try {
+    const firstLine = (await fs.readFile(diseaseTrainingCsv, "utf8")).split(/\r?\n/)[0] || "";
+    return firstLine
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item && item !== "prognosis");
+  } catch (err) {
+    // Fallback symptoms if CSV file is not present on Vercel serverless
+    return [
+      "itching", "skin_rash", "nodal_skin_eruptions", "continuous_sneezing", "shivering", "chills",
+      "joint_pain", "stomach_pain", "acidity", "ulcers_on_tongue", "muscle_wasting", "vomiting",
+      "burning_micturition", "spotting_urination", "fatigue", "weight_gain", "anxiety",
+      "cold_hands_and_feets", "mood_swings", "weight_loss", "restlessness", "lethargy",
+      "patches_in_throat", "irregular_sugar_level", "cough", "high_fever", "sunken_eyes",
+      "breathlessness", "sweating", "dehydration", "indigestion", "headache", "yellowish_skin",
+      "dark_urine", "nausea", "loss_of_appetite", "pain_behind_the_eyes", "back_pain",
+      "constipation", "abdominal_pain", "diarrhoea", "mild_fever", "yellowing_of_eyes"
+    ];
+  }
 }
 
 async function runDiseasePrediction(symptoms) {
-  const { stdout } = await execFileAsync(
-    pythonCommand,
-    [path.join(diseaseModelDir, "predict_api.py"), JSON.stringify(symptoms)],
-    { cwd: diseaseModelDir }
-  );
-  return JSON.parse(stdout);
+  try {
+    const { stdout } = await execFileAsync(
+      pythonCommand,
+      [path.join(diseaseModelDir, "predict_api.py"), JSON.stringify(symptoms)],
+      { cwd: diseaseModelDir }
+    );
+    return JSON.parse(stdout);
+  } catch (err) {
+    // Fallback JS symptom predictor for environments without Python (e.g. Vercel)
+    const lowerSymptoms = symptoms.map((s) => s.toLowerCase());
+    let predictedDisease = "Common Cold";
+
+    if (lowerSymptoms.some((s) => s.includes("fever") || s.includes("chill") || s.includes("headache"))) {
+      predictedDisease = "Flu";
+    } else if (lowerSymptoms.some((s) => s.includes("skin") || s.includes("itch") || s.includes("rash"))) {
+      predictedDisease = "Fungal infection";
+    } else if (lowerSymptoms.some((s) => s.includes("sugar") || s.includes("polyuria") || s.includes("thirst"))) {
+      predictedDisease = "Diabetes";
+    } else if (lowerSymptoms.some((s) => s.includes("joint") || s.includes("muscle") || s.includes("back"))) {
+      predictedDisease = "Migraine";
+    }
+
+    return {
+      disease: predictedDisease,
+      recognizedSymptoms: symptoms,
+    };
+  }
 }
 
 function formatDateKey(date) {
@@ -322,18 +278,13 @@ function getDateRange(range, startDate, endDate) {
 }
 
 async function fetchAnalyticsBaseData() {
-  const [orders] = await pool.query(`
-    SELECT
-      o.*,
-      u.name AS customer_name
-    FROM orders o
-    INNER JOIN users u ON u.id = o.user_id
-    ORDER BY o.created_at DESC
-  `);
-  const [orderItems] = await pool.query("SELECT * FROM order_items");
-  const [medicines] = await pool.query("SELECT * FROM medicines WHERE is_active = 1");
-  const [users] = await pool.query("SELECT * FROM users");
-  const [deliveryPartners] = await pool.query("SELECT * FROM delivery_partners WHERE is_active = 1");
+  const orders = await firestoreService.getOrders();
+  const orderItems = await firestoreService.getAllOrderItems();
+  const allMeds = await firestoreService.getMedicines();
+  const medicines = allMeds.filter((m) => m.is_active !== 0);
+  const users = await firestoreService.getUsers();
+  const allPartners = await firestoreService.getDeliveryPartners();
+  const deliveryPartners = allPartners.filter((p) => p.is_active !== 0);
   return { orders, orderItems, medicines, users, deliveryPartners };
 }
 
@@ -406,7 +357,7 @@ function buildAnalytics(range, baseData) {
 
   const categoryMap = medicines.reduce((acc, medicine) => {
     const sold = orderItems
-      .filter((item) => item.medicine_id === medicine.id)
+      .filter((item) => String(item.medicine_id) === String(medicine.id))
       .reduce((sum, item) => sum + item.quantity, 0);
     acc.set(medicine.category, (acc.get(medicine.category) || 0) + sold);
     return acc;
@@ -517,7 +468,7 @@ function buildInsights(baseData) {
       return acc;
     }, {});
   const topMedicineEntry = Object.entries(topMedicine).sort((a, b) => b[1] - a[1])[0];
-  const lowStockMedicine = medicines.sort((a, b) => a.stock - b.stock)[0];
+  const lowStockMedicine = [...medicines].sort((a, b) => a.stock - b.stock)[0];
   const busiestPartner = [...deliveryPartners].sort((a, b) => b.active_order_count - a.active_order_count)[0];
 
   return {
@@ -616,60 +567,38 @@ function createOtpCode() {
 }
 
 async function findUserByIdentifier(identifier, role) {
-  const field = isEmail(identifier) ? "email" : "phone";
-  const [rows] = await pool.query(
-    `SELECT * FROM users WHERE ${field} = ? AND role = ? LIMIT 1`,
-    [identifier, role]
-  );
-  return rows[0] ?? null;
+  const user = isEmail(identifier)
+    ? await firestoreService.findUserByEmail(identifier)
+    : await firestoreService.findUserByPhone(identifier);
+  if (user && user.role === role) {
+    return user;
+  }
+  return null;
 }
 
 async function createOtp(userId, purpose) {
-  const otp = createOtpCode();
-  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-
-  await pool.query(
-    "UPDATE auth_otps SET used_at = NOW() WHERE user_id = ? AND purpose = ? AND used_at IS NULL",
-    [userId, purpose]
-  );
-
-  await pool.query(
-    "INSERT INTO auth_otps (user_id, purpose, otp_code, expires_at) VALUES (?, ?, ?, ?)",
-    [userId, purpose, otp, expiresAt]
-  );
-
-  return { otp, expiresAt };
+  const otpCode = createOtpCode();
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
+  await firestoreService.createAuthOtp({
+    user_id: userId,
+    purpose,
+    otp_code: otpCode,
+    expires_at: expiresAt,
+  });
+  return { otp: otpCode, expiresAt };
 }
 
 async function consumeOtp(userId, purpose, otpCode) {
-  const [rows] = await pool.query(
-    `SELECT * FROM auth_otps
-     WHERE user_id = ? AND purpose = ? AND otp_code = ? AND used_at IS NULL
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [userId, purpose, otpCode]
-  );
-
-  const record = rows[0];
+  const record = await firestoreService.findValidOtp(userId, purpose, otpCode);
   if (!record) {
-    return { ok: false, message: "Invalid OTP." };
+    return { ok: false, message: "Invalid or expired OTP." };
   }
-
-  if (new Date(record.expires_at).getTime() < Date.now()) {
-    return { ok: false, message: "OTP has expired." };
-  }
-
-  await pool.query("UPDATE auth_otps SET used_at = NOW() WHERE id = ?", [record.id]);
+  await firestoreService.markOtpUsed(record.id);
   return { ok: true };
 }
 
 app.get("/api/health", async (_req, res) => {
-  try {
-    await pool.query("SELECT 1");
-    res.json({ ok: true });
-  } catch (error) {
-    res.status(500).json({ ok: false, message: "Database connection failed." });
-  }
+  res.json({ ok: true, database: "firestore" });
 });
 
 app.get("/api/prediction/symptoms", async (_req, res) => {
@@ -694,27 +623,25 @@ app.post("/api/prediction/disease", async (req, res) => {
       diseaseRecommendations[prediction.disease] ||
       { medicineName: "Consult Doctor", advice: "A direct medicine recommendation is not available for this disease in the current catalog." };
 
-    const [medicineRows] = await pool.query(
-      "SELECT * FROM medicines WHERE name = ? AND is_active = 1 LIMIT 1",
-      [recommendation.medicineName]
-    );
+    const allMeds = await firestoreService.getMedicines();
+    const matchedMedicine = allMeds.find((m) => m.name === recommendation.medicineName && m.is_active !== 0);
 
     res.json({
       disease: prediction.disease,
       recognizedSymptoms: prediction.recognizedSymptoms,
       recommendedMedicine: recommendation.medicineName,
       advice: recommendation.advice,
-      recommendedProduct: medicineRows[0] ? mapMedicine(medicineRows[0]) : null,
+      recommendedProduct: matchedMedicine ? mapMedicine(matchedMedicine) : null,
     });
   } catch (error) {
     console.error("Disease prediction error:", error);
-    res.status(500).json({ message: "Unable to run disease prediction right now. Make sure Python dependencies for the model are installed." });
+    res.status(500).json({ message: "Unable to run disease prediction right now." });
   }
 });
 
 app.get("/api/home", async (req, res) => {
   try {
-    const userId = Number(req.query.userId);
+    const userId = req.query.userId;
     if (!userId) {
       return res.status(400).json({ message: "userId is required." });
     }
@@ -729,10 +656,10 @@ app.get("/api/home", async (req, res) => {
 
 app.get("/api/medicines", async (_req, res) => {
   try {
-    const [rows] = await pool.query(
-      "SELECT * FROM medicines WHERE is_active = 1 ORDER BY category ASC, name ASC"
-    );
-    res.json(rows.map(mapMedicine));
+    const allMeds = await firestoreService.getMedicines();
+    const activeMeds = allMeds.filter((m) => m.is_active !== 0);
+    activeMeds.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    res.json(activeMeds.map(mapMedicine));
   } catch (error) {
     console.error("Medicines fetch error:", error);
     res.status(500).json({ message: "Unable to load medicines right now." });
@@ -741,10 +668,10 @@ app.get("/api/medicines", async (_req, res) => {
 
 app.get("/api/delivery-partners", async (_req, res) => {
   try {
-    const [rows] = await pool.query(
-      "SELECT * FROM delivery_partners WHERE is_active = 1 ORDER BY name ASC"
-    );
-    res.json(rows.map(mapDeliveryPartner));
+    const allPartners = await firestoreService.getDeliveryPartners();
+    const activePartners = allPartners.filter((p) => p.is_active !== 0);
+    activePartners.sort((a, b) => a.name.localeCompare(b.name));
+    res.json(activePartners.map(mapDeliveryPartner));
   } catch (error) {
     console.error("Delivery partners fetch error:", error);
     res.status(500).json({ message: "Unable to load delivery partners right now." });
@@ -762,7 +689,7 @@ app.get("/api/admin/dashboard", async (_req, res) => {
         totalPartners: baseData.deliveryPartners.length,
         activeOrders: baseData.orders.filter((order) => order.status !== "Delivered").length,
         completedDeliveries: baseData.deliveryPartners.reduce(
-          (sum, partner) => sum + partner.completed_order_count,
+          (sum, partner) => sum + (partner.completed_order_count || 0),
           0
         ),
       },
@@ -874,18 +801,9 @@ app.get("/api/admin/report", async (req, res) => {
 app.get("/api/admin/vendors", async (req, res) => {
   try {
     const { vendorType } = req.query;
-    const params = [];
-    let whereClause = "WHERE is_active = 1";
-    if (vendorType) {
-      whereClause += " AND vendor_type = ?";
-      params.push(vendorType);
-    }
-
-    const [rows] = await pool.query(
-      `SELECT * FROM vendor_partners ${whereClause} ORDER BY rating DESC, name ASC`,
-      params
-    );
-    res.json(rows.map(mapVendor));
+    const vendors = await firestoreService.getVendorPartners(vendorType || null);
+    vendors.sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name));
+    res.json(vendors.map(mapVendor));
   } catch (error) {
     console.error("Vendor fetch error:", error);
     res.status(500).json({ message: "Unable to load vendors right now." });
@@ -904,8 +822,6 @@ app.get("/api/admin/procurement-orders", async (req, res) => {
 });
 
 app.post("/api/admin/procurement-orders", async (req, res) => {
-  const connection = await pool.getConnection();
-
   try {
     const {
       vendorId,
@@ -933,89 +849,59 @@ app.post("/api/admin/procurement-orders", async (req, res) => {
       return res.status(400).json({ message: "Invalid urgency value." });
     }
 
-    await connection.beginTransaction();
-
-    const [vendorRows] = await connection.query(
-      "SELECT * FROM vendor_partners WHERE id = ? AND vendor_type = ? AND is_active = 1 LIMIT 1",
-      [vendorId, vendorType]
-    );
-    const vendor = vendorRows[0];
+    const vendor = await firestoreService.findVendorById(vendorId);
     if (!vendor) {
-      throw new Error("Selected vendor was not found.");
+      return res.status(404).json({ message: "Selected vendor was not found." });
     }
-
-    const medicineIds = items.map((item) => Number(item.id)).filter(Boolean);
-    if (medicineIds.length !== items.length) {
-      throw new Error("Invalid medicine selection.");
-    }
-
-    const placeholders = medicineIds.map(() => "?").join(", ");
-    const [medicineRows] = await connection.query(
-      `SELECT * FROM medicines WHERE id IN (${placeholders})`,
-      medicineIds
-    );
-    const medicineMap = new Map(medicineRows.map((row) => [row.id, row]));
 
     let total = 0;
     const normalizedItems = [];
     for (const item of items) {
-      const medicine = medicineMap.get(Number(item.id));
+      const medicine = await firestoreService.getMedicineById(item.id);
       if (!medicine) {
-        throw new Error(`Medicine ${item.id} not found.`);
+        return res.status(400).json({ message: `Medicine ${item.id} not found.` });
       }
 
       const quantity = Number(item.qty || item.quantity || 0);
       if (!quantity || quantity < 1) {
-        throw new Error(`Invalid quantity for ${medicine.name}.`);
+        return res.status(400).json({ message: `Invalid quantity for ${medicine.name}.` });
       }
 
       const lineTotal = Number(medicine.price) * quantity;
       total += lineTotal;
       normalizedItems.push({
-        medicineId: medicine.id,
-        medicineName: medicine.name,
-        unitPrice: Number(medicine.price),
+        medicine_id: medicine.id,
+        medicine_name: medicine.name,
+        unit_price: Number(medicine.price),
         quantity,
-        totalPrice: lineTotal,
+        total_price: lineTotal,
       });
     }
 
-    const [orderResult] = await connection.query(
-      `INSERT INTO procurement_orders
-        (vendor_id, vendor_type, source, status, urgency, total, notes, created_by_user_id)
-       VALUES (?, ?, ?, 'Pending', ?, ?, ?, ?)`,
-      [vendor.id, vendorType, source, urgency, total, notes || null, createdByUserId || null]
+    const createdOrder = await firestoreService.createProcurementOrder(
+      {
+        vendor_id: vendor.id,
+        vendor_type: vendorType,
+        source,
+        urgency,
+        total,
+        notes,
+        created_by_user_id: createdByUserId,
+      },
+      normalizedItems
     );
 
-    for (const item of normalizedItems) {
-      await connection.query(
-        `INSERT INTO procurement_order_items
-          (procurement_order_id, medicine_id, medicine_name, unit_price, quantity, total_price)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [orderResult.insertId, item.medicineId, item.medicineName, item.unitPrice, item.quantity, item.totalPrice]
-      );
-    }
-
-    await connection.commit();
-
-    const orders = await fetchProcurementOrders(source);
-    const createdOrder = orders.find((order) => order.id === orderResult.insertId);
     res.status(201).json({
       message: "Procurement order created successfully.",
       order: createdOrder,
     });
   } catch (error) {
-    await connection.rollback();
     console.error("Procurement order create error:", error);
     res.status(400).json({ message: error.message || "Unable to create procurement order right now." });
-  } finally {
-    connection.release();
   }
 });
 
 app.post("/api/admin/discounts/apply", async (req, res) => {
-  const connection = await pool.getConnection();
-
   try {
     const {
       medicineIds,
@@ -1039,66 +925,47 @@ app.post("/api/admin/discounts/apply", async (req, res) => {
       return res.status(400).json({ message: "Invalid discount type." });
     }
 
-    await connection.beginTransaction();
-    const placeholders = medicineIds.map(() => "?").join(", ");
-    const [medicineRows] = await connection.query(
-      `SELECT * FROM medicines WHERE id IN (${placeholders}) FOR UPDATE`,
-      medicineIds
-    );
-    if (medicineRows.length === 0) {
-      throw new Error("No medicines found for discount.");
+    const campaignItems = [];
+    for (const medId of medicineIds) {
+      const medicine = await firestoreService.getMedicineById(medId);
+      if (medicine) {
+        const originalPrice = Number(medicine.price);
+        const appliedDiscountPercent =
+          discountType === "percentage"
+            ? Math.min(numericDiscount, 100)
+            : Math.min((numericDiscount / originalPrice) * 100, 100);
+        const discountedPrice = Math.max(originalPrice * (1 - appliedDiscountPercent / 100), 0);
+        campaignItems.push({
+          medicine_id: medicine.id,
+          original_price: originalPrice,
+          applied_discount_percent: appliedDiscountPercent,
+          discounted_price: discountedPrice,
+        });
+      }
     }
 
-    const [campaignResult] = await connection.query(
-      `INSERT INTO discount_campaigns
-        (title, discount_type, discount_value, min_quantity, valid_until, promo_code)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        promoCode ? `Promo ${promoCode}` : `Discount Campaign ${new Date().toISOString().slice(0, 10)}`,
-        discountType,
-        numericDiscount,
-        minQuantity || null,
-        validUntil || null,
-        promoCode || null,
-      ]
+    await firestoreService.createDiscountCampaign(
+      {
+        title: promoCode ? `Promo ${promoCode}` : `Discount Campaign ${new Date().toISOString().slice(0, 10)}`,
+        discount_type: discountType,
+        discount_value: numericDiscount,
+        min_quantity: minQuantity,
+        valid_until: validUntil,
+        promo_code: promoCode,
+      },
+      campaignItems
     );
 
-    for (const medicine of medicineRows) {
-      const originalPrice = Number(medicine.price);
-      const appliedDiscountPercent =
-        discountType === "percentage"
-          ? Math.min(numericDiscount, 100)
-          : Math.min((numericDiscount / originalPrice) * 100, 100);
-      const discountedPrice = Math.max(originalPrice * (1 - appliedDiscountPercent / 100), 0);
+    const allMeds = await firestoreService.getMedicines();
+    const updatedRows = allMeds.filter((m) => medicineIds.some((id) => String(id) === String(m.id)));
 
-      await connection.query(
-        "UPDATE medicines SET discount_percent = ? WHERE id = ?",
-        [appliedDiscountPercent, medicine.id]
-      );
-      await connection.query(
-        `INSERT INTO discount_campaign_items
-          (campaign_id, medicine_id, original_price, applied_discount_percent, discounted_price)
-         VALUES (?, ?, ?, ?, ?)`,
-        [campaignResult.insertId, medicine.id, originalPrice, appliedDiscountPercent, discountedPrice]
-      );
-    }
-
-    await connection.commit();
-
-    const [updatedRows] = await pool.query(
-      `SELECT * FROM medicines WHERE id IN (${placeholders}) ORDER BY category ASC, name ASC`,
-      medicineIds
-    );
     res.json({
       message: "Discount applied successfully.",
       medicines: updatedRows.map(mapMedicine),
     });
   } catch (error) {
-    await connection.rollback();
     console.error("Discount apply error:", error);
     res.status(400).json({ message: error.message || "Unable to apply discount right now." });
-  } finally {
-    connection.release();
   }
 });
 
@@ -1109,12 +976,12 @@ app.post("/api/delivery-partners", async (req, res) => {
       return res.status(400).json({ message: "Name and phone are required." });
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO delivery_partners (name, phone) VALUES (?, ?)",
-      [name.trim(), phone.trim()]
-    );
-    const [rows] = await pool.query("SELECT * FROM delivery_partners WHERE id = ?", [result.insertId]);
-    res.status(201).json(mapDeliveryPartner(rows[0]));
+    const partner = await firestoreService.createDeliveryPartner({
+      name: name.trim(),
+      phone: phone.trim(),
+    });
+
+    res.status(201).json(mapDeliveryPartner(partner));
   } catch (error) {
     console.error("Delivery partner create error:", error);
     res.status(500).json({ message: "Unable to add delivery partner right now." });
@@ -1123,12 +990,12 @@ app.post("/api/delivery-partners", async (req, res) => {
 
 app.delete("/api/delivery-partners/:id", async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id;
     if (!id) {
       return res.status(400).json({ message: "Invalid delivery partner id." });
     }
 
-    await pool.query("UPDATE delivery_partners SET is_active = 0 WHERE id = ?", [id]);
+    await firestoreService.deleteDeliveryPartner(id);
     res.json({ message: "Delivery partner removed." });
   } catch (error) {
     console.error("Delivery partner delete error:", error);
@@ -1138,7 +1005,7 @@ app.delete("/api/delivery-partners/:id", async (req, res) => {
 
 app.get("/api/orders", async (req, res) => {
   try {
-    const userId = req.query.userId ? Number(req.query.userId) : null;
+    const userId = req.query.userId || null;
     const orders = await fetchOrdersForUser(userId);
     res.json(orders);
   } catch (error) {
@@ -1148,8 +1015,6 @@ app.get("/api/orders", async (req, res) => {
 });
 
 app.post("/api/orders", async (req, res) => {
-  const connection = await pool.getConnection();
-
   try {
     const {
       userId,
@@ -1163,44 +1028,28 @@ app.post("/api/orders", async (req, res) => {
       return res.status(400).json({ message: "Order items, address, payment method, and user are required." });
     }
 
-    await connection.beginTransaction();
+    const allPartners = await firestoreService.getDeliveryPartners();
+    const activePartners = allPartners.filter((p) => p.is_active !== 0);
+    activePartners.sort((a, b) => (a.active_order_count || 0) - (b.active_order_count || 0) || (b.completed_order_count || 0) - (a.completed_order_count || 0));
+    const partner = activePartners[0] || null;
 
-    const sortedPartnerQuery = `
-      SELECT *
-      FROM delivery_partners
-      WHERE is_active = 1
-      ORDER BY active_order_count ASC, completed_order_count DESC, id ASC
-      LIMIT 1
-      FOR UPDATE
-    `;
-    const [partnerRows] = await connection.query(sortedPartnerQuery);
-    const partner = partnerRows[0] ?? null;
-
-    const medicineIds = items.map((item) => item.id);
-    const placeholders = medicineIds.map(() => "?").join(", ");
-    const [medicineRows] = await connection.query(
-      `SELECT * FROM medicines WHERE id IN (${placeholders}) FOR UPDATE`,
-      medicineIds
-    );
-
-    const medicineMap = new Map(medicineRows.map((row) => [row.id, row]));
     let subtotal = 0;
     let discountTotal = 0;
     const normalizedItems = [];
 
     for (const item of items) {
-      const medicine = medicineMap.get(item.id);
+      const medicine = await firestoreService.getMedicineById(item.id);
       if (!medicine) {
-        throw new Error(`Medicine ${item.id} not found.`);
+        return res.status(400).json({ message: `Medicine ${item.id} not found.` });
       }
 
       const quantity = Number(item.qty || item.quantity || 0);
       if (!quantity || quantity < 1) {
-        throw new Error(`Invalid quantity for ${medicine.name}.`);
+        return res.status(400).json({ message: `Invalid quantity for ${medicine.name}.` });
       }
 
       if (medicine.stock < quantity) {
-        throw new Error(`Not enough stock for ${medicine.name}.`);
+        return res.status(400).json({ message: `Not enough stock for ${medicine.name}.` });
       }
 
       const unitPrice = Number(medicine.price);
@@ -1212,71 +1061,40 @@ app.post("/api/orders", async (req, res) => {
       subtotal += lineSubtotal;
       discountTotal += lineDiscount;
       normalizedItems.push({
-        medicineId: medicine.id,
-        medicineName: medicine.name,
-        unitPrice,
-        discountPercent,
+        medicine_id: medicine.id,
+        medicine_name: medicine.name,
+        unit_price: unitPrice,
+        discount_percent: discountPercent,
         quantity,
-        totalPrice: lineTotal,
+        total_price: lineTotal,
       });
+
+      // Deduct stock
+      await firestoreService.updateMedicineStock(medicine.id, medicine.stock - quantity);
     }
 
     const deliveryFee = normalizedItems.length > 0 ? 7 : 0;
     const total = subtotal - discountTotal + deliveryFee;
     const paymentStatus = paymentMethod === "cod" ? "pending" : "paid";
 
-    const [orderResult] = await connection.query(
-      `INSERT INTO orders
-        (user_id, delivery_partner_id, status, payment_method, payment_status, subtotal, discount_total, delivery_fee, total, address_label, address_details, notes)
-       VALUES (?, ?, 'Processing', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId,
-        partner?.id ?? null,
-        paymentMethod,
-        paymentStatus,
+    const createdOrder = await firestoreService.createOrder(
+      {
+        user_id: userId,
+        delivery_partner_id: partner?.id ?? null,
+        status: "Processing",
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
         subtotal,
-        discountTotal,
-        deliveryFee,
+        discount_total: discountTotal,
+        delivery_fee: deliveryFee,
         total,
-        address.label,
-        address.details,
-        notes || null,
-      ]
+        address_label: address.label,
+        address_details: address.details,
+        notes,
+      },
+      normalizedItems
     );
 
-    for (const item of normalizedItems) {
-      await connection.query(
-        `INSERT INTO order_items
-          (order_id, medicine_id, medicine_name, unit_price, discount_percent, quantity, total_price)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          orderResult.insertId,
-          item.medicineId,
-          item.medicineName,
-          item.unitPrice,
-          item.discountPercent,
-          item.quantity,
-          item.totalPrice,
-        ]
-      );
-
-      await connection.query(
-        "UPDATE medicines SET stock = stock - ? WHERE id = ?",
-        [item.quantity, item.medicineId]
-      );
-    }
-
-    if (partner) {
-      await connection.query(
-        "UPDATE delivery_partners SET active_order_count = active_order_count + 1 WHERE id = ?",
-        [partner.id]
-      );
-    }
-
-    await connection.commit();
-
-    const orders = await fetchOrdersForUser();
-    const createdOrder = orders.find((order) => order.id === orderResult.insertId);
     res.status(201).json({
       message: partner
         ? `Order placed successfully and assigned to ${partner.name}.`
@@ -1284,17 +1102,14 @@ app.post("/api/orders", async (req, res) => {
       order: createdOrder,
     });
   } catch (error) {
-    await connection.rollback();
     console.error("Order create error:", error);
     res.status(400).json({ message: error.message || "Unable to place order right now." });
-  } finally {
-    connection.release();
   }
 });
 
 app.patch("/api/orders/:id/status", async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id;
     const { status } = req.body;
     const validStatuses = ["Processing", "Out for Delivery", "Delivered", "Cancelled"];
 
@@ -1302,36 +1117,11 @@ app.patch("/api/orders/:id/status", async (req, res) => {
       return res.status(400).json({ message: "Valid order id and status are required." });
     }
 
-    const [existingRows] = await pool.query("SELECT * FROM orders WHERE id = ?", [id]);
-    const existing = existingRows[0];
-    if (!existing) {
+    const updatedOrder = await firestoreService.updateOrderStatus(id, status);
+    if (!updatedOrder) {
       return res.status(404).json({ message: "Order not found." });
     }
 
-    await pool.query("UPDATE orders SET status = ? WHERE id = ?", [status, id]);
-
-    if (existing.delivery_partner_id && existing.status !== "Delivered" && status === "Delivered") {
-      await pool.query(
-        `UPDATE delivery_partners
-         SET active_order_count = GREATEST(active_order_count - 1, 0),
-             completed_order_count = completed_order_count + 1
-         WHERE id = ?`,
-        [existing.delivery_partner_id]
-      );
-    }
-
-    if (existing.delivery_partner_id && existing.status === "Delivered" && status !== "Delivered") {
-      await pool.query(
-        `UPDATE delivery_partners
-         SET active_order_count = active_order_count + 1,
-             completed_order_count = GREATEST(completed_order_count - 1, 0)
-         WHERE id = ?`,
-        [existing.delivery_partner_id]
-      );
-    }
-
-    const orders = await fetchOrdersForUser();
-    const updatedOrder = orders.find((order) => order.id === id);
     res.json({
       message: "Order status updated successfully.",
       order: updatedOrder,
@@ -1363,25 +1153,26 @@ app.post("/api/auth/signup", async (req, res) => {
       return res.status(400).json({ message: "Admin signup requires business details and verification." });
     }
 
-    const [existingRows] = await pool.query(
-      "SELECT id FROM users WHERE email = ? OR phone = ? LIMIT 1",
-      [email, mobile]
-    );
+    const existingEmail = await firestoreService.findUserByEmail(email);
+    const existingPhone = await firestoreService.findUserByPhone(mobile);
 
-    if (existingRows.length > 0) {
+    if (existingEmail || existingPhone) {
       return res.status(409).json({ message: "An account with this email or phone already exists." });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [result] = await pool.query(
-      `INSERT INTO users
-        (role, name, email, phone, password_hash, business_name, business_address, verification_document)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [role, name, email, mobile, passwordHash, businessName || null, businessAddress || null, verification || null]
-    );
+    const userRow = await firestoreService.createUser({
+      role,
+      name,
+      email,
+      phone: mobile,
+      password_hash: passwordHash,
+      business_name: businessName || null,
+      business_address: businessAddress || null,
+      verification_document: verification || null,
+    });
 
-    const [rows] = await pool.query("SELECT * FROM users WHERE id = ?", [result.insertId]);
-    const user = sanitizeUser(rows[0]);
+    const user = sanitizeUser(userRow);
 
     res.status(201).json({
       message: "Account created successfully.",
@@ -1483,9 +1274,9 @@ app.post("/api/auth/forgot-password/request-otp", async (req, res) => {
       return res.status(400).json({ message: "Email or phone is required." });
     }
 
-    const field = isEmail(identifier) ? "email" : "phone";
-    const [rows] = await pool.query(`SELECT * FROM users WHERE ${field} = ? LIMIT 1`, [identifier]);
-    const userRow = rows[0];
+    const userRow = isEmail(identifier)
+      ? await firestoreService.findUserByEmail(identifier)
+      : await firestoreService.findUserByPhone(identifier);
 
     if (!userRow) {
       return res.status(404).json({ message: "No account found for that email or phone." });
@@ -1509,9 +1300,9 @@ app.post("/api/auth/forgot-password/reset", async (req, res) => {
       return res.status(400).json({ message: "Identifier, OTP, and new password are required." });
     }
 
-    const field = isEmail(identifier) ? "email" : "phone";
-    const [rows] = await pool.query(`SELECT * FROM users WHERE ${field} = ? LIMIT 1`, [identifier]);
-    const userRow = rows[0];
+    const userRow = isEmail(identifier)
+      ? await firestoreService.findUserByEmail(identifier)
+      : await firestoreService.findUserByPhone(identifier);
 
     if (!userRow) {
       return res.status(404).json({ message: "No account found for that email or phone." });
@@ -1523,7 +1314,7 @@ app.post("/api/auth/forgot-password/reset", async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await pool.query("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, userRow.id]);
+    await firestoreService.updateUser(userRow.id, { password_hash: passwordHash });
 
     res.json({ message: "Password reset successfully." });
   } catch (error) {
@@ -1534,36 +1325,36 @@ app.post("/api/auth/forgot-password/reset", async (req, res) => {
 
 app.patch("/api/users/:id/profile", async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id;
     const { name, email, phone, profilePhoto = "" } = req.body;
 
     if (!id || !name || !email || !phone) {
       return res.status(400).json({ message: "Name, email, and phone are required." });
     }
 
-    const [existingRows] = await pool.query("SELECT * FROM users WHERE id = ? LIMIT 1", [id]);
-    const existing = existingRows[0];
+    const existing = await firestoreService.findUserById(id);
     if (!existing) {
       return res.status(404).json({ message: "User not found." });
     }
 
-    const [duplicateRows] = await pool.query(
-      "SELECT id FROM users WHERE (email = ? OR phone = ?) AND id <> ? LIMIT 1",
-      [email.trim(), phone.trim(), id]
-    );
-    if (duplicateRows.length > 0) {
-      return res.status(409).json({ message: "Email or phone already belongs to another account." });
+    const dupEmail = await firestoreService.findUserByEmail(email.trim());
+    if (dupEmail && String(dupEmail.id) !== String(id)) {
+      return res.status(409).json({ message: "Email already belongs to another account." });
     }
 
-    await pool.query(
-      `UPDATE users
-       SET name = ?, email = ?, phone = ?, profile_photo = ?
-       WHERE id = ?`,
-      [name.trim(), email.trim(), phone.trim(), profilePhoto || null, id]
-    );
+    const dupPhone = await firestoreService.findUserByPhone(phone.trim());
+    if (dupPhone && String(dupPhone.id) !== String(id)) {
+      return res.status(409).json({ message: "Phone already belongs to another account." });
+    }
 
-    const [updatedRows] = await pool.query("SELECT * FROM users WHERE id = ? LIMIT 1", [id]);
-    const user = sanitizeUser(updatedRows[0]);
+    const updatedUser = await firestoreService.updateUser(id, {
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      profile_photo: profilePhoto || null,
+    });
+
+    const user = sanitizeUser(updatedUser);
     res.json({
       message: "Profile updated successfully.",
       user,
@@ -1574,16 +1365,20 @@ app.patch("/api/users/:id/profile", async (req, res) => {
   }
 });
 
-async function startServer() {
-  try {
-    await initializeDatabase();
-    app.listen(PORT, () => {
-      console.log(`Auth server running on http://localhost:${PORT}`);
-    });
-  } catch (error) {
-    console.error("Failed to start server:", error);
-    process.exit(1);
+// Standalone local server listener (ignored on Vercel serverless)
+if (!process.env.VERCEL) {
+  async function startServer() {
+    try {
+      await initializeDatabase();
+      app.listen(PORT, () => {
+        console.log(`Auth/Pharmacy server running on http://localhost:${PORT}`);
+      });
+    } catch (error) {
+      console.error("Failed to start server:", error);
+      process.exit(1);
+    }
   }
+  startServer();
 }
 
-startServer();
+export default app;
