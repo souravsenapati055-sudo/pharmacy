@@ -33,6 +33,14 @@ app.use(
 );
 app.use(express.json());
 
+// Normalize Vercel Serverless Function URLs to match /api routes
+app.use((req, _res, next) => {
+  if (!req.url.startsWith("/api") && req.url !== "/") {
+    req.url = "/api" + req.url;
+  }
+  next();
+});
+
 // Ensure Database is initialized on Vercel or Express startup
 let isInitialized = false;
 app.use(async (_req, _res, next) => {

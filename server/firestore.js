@@ -48,7 +48,7 @@ try {
   isFirestoreConnected = false;
 }
 
-// Fallback Local Memory/JSON Store for development
+// Fallback Local Memory Store
 let localStore = {
   users: [],
   auth_otps: [],
@@ -80,7 +80,7 @@ async function loadLocalStore() {
     const data = await fs.readFile(LOCAL_STORE_FILE, "utf8");
     localStore = JSON.parse(data);
   } catch (err) {
-    await saveLocalStore();
+    // Keep in-memory store initialized
   }
 }
 
@@ -88,11 +88,13 @@ async function saveLocalStore() {
   try {
     await fs.writeFile(LOCAL_STORE_FILE, JSON.stringify(localStore, null, 2), "utf8");
   } catch (err) {
-    console.error("Error saving local store:", err);
+    // Silent catch for Vercel read-only filesystem environment
   }
 }
 
-await loadLocalStore();
+try {
+  await loadLocalStore();
+} catch (err) {}
 
 // Default seed data
 const SEED_MEDICINES = [
@@ -159,7 +161,6 @@ export async function initializeDatabase() {
           batch.set(ref, { ...u, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
         });
         await batch.commit();
-        console.log("✅ Seeded default admin and customer accounts in Firestore");
       }
 
       // Check & Seed Medicines in Firestore
@@ -171,7 +172,6 @@ export async function initializeDatabase() {
           batch.set(ref, { ...med, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
         });
         await batch.commit();
-        console.log("✅ Seeded initial medicines in Firestore (pharmacy-ecfa5)");
       }
 
       // Check & Seed Delivery Partners
@@ -183,7 +183,6 @@ export async function initializeDatabase() {
           batch.set(ref, { ...partner, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
         });
         await batch.commit();
-        console.log("✅ Seeded initial delivery partners in Firestore (pharmacy-ecfa5)");
       }
 
       // Check & Seed Vendor Partners
@@ -195,11 +194,8 @@ export async function initializeDatabase() {
           batch.set(ref, { ...vendor, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
         });
         await batch.commit();
-        console.log("✅ Seeded initial vendor partners in Firestore (pharmacy-ecfa5)");
       }
-    } catch (err) {
-      console.warn("ℹ️ Firestore remote sync deferred, using local memory store:", err.message);
-    }
+    } catch (err) {}
   }
 
   // Ensure local memory store fallback is seeded
