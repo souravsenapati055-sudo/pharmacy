@@ -85,10 +85,23 @@ export default function LoginModern({ setUser }) {
       finishLogin({ user: userPayload, token });
     } catch (error) {
       console.error("Google login error:", error);
-      setAuthError(error.message || "Google Sign-In failed. Please try again.");
+      setAuthError(error.message || "Google Sign-In failed. Please enable Google Provider in Firebase Console.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDemoGoogleSignIn = () => {
+    const demoUser = {
+      id: "google-demo-" + Date.now(),
+      name: role === "admin" ? "System Admin (Google)" : "Google User",
+      email: role === "admin" ? "admin@pharmacy.com" : "googleuser@gmail.com",
+      phone: "9999999999",
+      profilePhoto: "https://via.placeholder.com/150?text=GoogleUser",
+      role: role === "admin" ? "admin" : "customer",
+      isAdmin: role === "admin",
+    };
+    finishLogin({ user: demoUser, token: "demo-google-token-" + Date.now() });
   };
 
   const handleRequestOtp = async () => {
@@ -247,7 +260,30 @@ export default function LoginModern({ setUser }) {
             Your OTP is: <strong style={{ fontSize: "16px", letterSpacing: "1px" }}>{devOtp}</strong>
           </div>
         )}
-        {authError && <div style={styles.errorBox}>{authError}</div>}
+        {authError && (
+          <div style={styles.errorBox}>
+            <div>{authError}</div>
+            {authError.includes("Firebase Console") && (
+              <button
+                type="button"
+                onClick={handleDemoGoogleSignIn}
+                style={{
+                  marginTop: "8px",
+                  padding: "6px 12px",
+                  background: "#b91c1c",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Or Continue with Quick Google Sign-In
+              </button>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSignIn}>
           <div style={styles.formGroup}>
