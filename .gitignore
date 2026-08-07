@@ -5,3 +5,5 @@ dist/
 Disease-Prediction-from-Symptoms-master/__pycache__/
 __pycache__/
 server/local_db_store.json
+.vercel
+
