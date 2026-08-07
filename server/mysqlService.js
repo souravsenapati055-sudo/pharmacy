@@ -87,6 +87,10 @@ export async function initializeDatabase(retries = 5, delayMs = 3000) {
   const config = getDbConfig();
   console.log(`🔌 Attempting MySQL connection to host: ${config.host}:${config.port}, database: ${config.database}, user: ${config.user}`);
 
+  if ((process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_STATIC_URL) && (config.host === "localhost" || config.host === "127.0.0.1")) {
+    console.warn("⚠️ CRITICAL: Railway environment detected, but MYSQL_URL or DB_HOST environment variable is missing in your Web Service Variables tab!");
+  }
+
   for (let i = 1; i <= retries; i++) {
     try {
       // First ensure Database exists (for local or root connection)
