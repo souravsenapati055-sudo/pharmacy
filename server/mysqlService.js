@@ -320,7 +320,7 @@ export async function initializeDatabase(retries = 5, delayMs = 3000) {
         }
       }
 
-      console.log("✅ MySQL Database initialized successfully");
+      console.log(`✅ MySQL Database initialized successfully on target database: "${config.database}"`);
       return;
     } catch (err) {
       console.warn(`⚠️ MySQL Connection attempt ${i}/${retries} failed (${err.message}). Retrying in ${delayMs / 1000}s...`);
