@@ -239,7 +239,7 @@ async function seedMySQL() {
       await conn.query(
         `INSERT INTO users (id, role, name, email, phone, password_hash, business_name, business_address, verification_document)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE name=VALUES(name)`,
+         ON DUPLICATE KEY UPDATE name=VALUES(name), password_hash=VALUES(password_hash)`,
         [u.id, u.role, u.name, u.email, u.phone, u.password_hash, u.business_name, u.business_address, u.verification_document]
       );
     }
