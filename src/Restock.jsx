@@ -13,6 +13,7 @@ export default function Restock({ medicines = [] }) {
   const [selectedSupplier, setSelectedSupplier] = useState("");
   const [recentOrders, setRecentOrders] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
+  const [statusIsError, setStatusIsError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const lowStockItems = useMemo(
@@ -37,7 +38,6 @@ export default function Restock({ medicines = [] }) {
 
   useEffect(() => {
     let ignore = false;
-
     async function loadData() {
       try {
         const [supplierRows, orderRows] = await Promise.all([
@@ -49,14 +49,11 @@ export default function Restock({ medicines = [] }) {
           setRecentOrders(orderRows.slice(0, 5));
         }
       } catch (error) {
-        if (!ignore) setStatusMessage(error.message);
+        if (!ignore) { setStatusMessage(error.message); setStatusIsError(true); }
       }
     }
-
     loadData();
-    return () => {
-      ignore = true;
-    };
+    return () => { ignore = true; };
   }, []);
 
   const toggleSelectItem = (itemId) => {
@@ -66,31 +63,22 @@ export default function Restock({ medicines = [] }) {
   };
 
   const updateQuantity = (itemId, value) => {
-    setRestockQuantity((prev) => ({
-      ...prev,
-      [itemId]: Number(value) || 0,
-    }));
+    setRestockQuantity((prev) => ({ ...prev, [itemId]: Number(value) || 0 }));
   };
 
   const calculateTotal = () =>
     selectedItems.reduce((total, itemId) => {
-      const item = lowStockItems.find((entry) => entry.id === itemId);
-      const quantity = restockQuantity[itemId] || 0;
-      return total + (item?.price || 0) * quantity;
+      const item = lowStockItems.find((e) => e.id === itemId);
+      return total + (item?.price || 0) * (restockQuantity[itemId] || 0);
     }, 0);
 
   const placeRestockOrder = async () => {
-    if (selectedItems.length === 0) {
-      setStatusMessage("Please select items to restock.");
-      return;
-    }
-    if (!selectedSupplier) {
-      setStatusMessage("Please select a supplier.");
-      return;
-    }
+    if (selectedItems.length === 0) { setStatusMessage("Please select items to restock."); setStatusIsError(true); return; }
+    if (!selectedSupplier) { setStatusMessage("Please select a supplier."); setStatusIsError(true); return; }
 
     setSubmitting(true);
     setStatusMessage("");
+    setStatusIsError(false);
     try {
       const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
       const response = await createProcurementOrder({
@@ -98,152 +86,169 @@ export default function Restock({ medicines = [] }) {
         vendorType: "supplier",
         source: "restock",
         createdByUserId: currentUser.id || null,
-        items: selectedItems.map((itemId) => ({
-          id: itemId,
-          quantity: restockQuantity[itemId] || 1,
-        })),
+        items: selectedItems.map((itemId) => ({ id: itemId, quantity: restockQuantity[itemId] || 1 })),
       });
       setRecentOrders((prev) => [response.order, ...prev].slice(0, 5));
       setSelectedItems([]);
       setSelectedSupplier("");
-      setStatusMessage(response.message);
+      setStatusMessage(response.message || "Restock order placed successfully!");
+      setStatusIsError(false);
     } catch (error) {
       setStatusMessage(error.message);
+      setStatusIsError(true);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const getStockClass = (stock) => {
+    if (stock <= 5) return "stock-critical";
+    if (stock <= 12) return "stock-low";
+    return "stock-ok";
+  };
+
+  const getStockLabel = (stock) => {
+    if (stock <= 5) return "Critical";
+    if (stock <= 12) return "Low";
+    return "Moderate";
+  };
+
   return (
-    <div className="restock-container">
+    <div className="restock-page">
       <div className="restock-header">
-        <h1>Restock Low Inventory Items</h1>
+        <h2>📦 Restock Low Inventory</h2>
         <p>Review live low-stock medicines and place supplier restock orders.</p>
       </div>
 
-      {statusMessage && <div className="success-message">{statusMessage}</div>}
+      {lowStockItems.length > 0 && (
+        <div className="low-stock-banner">
+          <span className="low-stock-banner-icon">⚠️</span>
+          <span>
+            <strong>{lowStockItems.length} medicines</strong> are below the minimum stock threshold (20 units). Select items and place a supplier order.
+          </span>
+        </div>
+      )}
 
-      <div className="restock-content">
-        <div className="low-stock-section">
-          <h2>Low Stock Items</h2>
-          <div className="items-table-container">
-            <table className="items-table">
-              <thead>
-                <tr>
-                  <th>Select</th>
-                  <th>Medicine</th>
-                  <th>Category</th>
-                  <th>Current Stock</th>
-                  <th>Min Stock</th>
-                  <th>Shortage</th>
-                  <th>Price</th>
-                  <th>Restock Qty</th>
-                  <th>Total Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lowStockItems.map((item) => {
-                  const shortage = item.minStock - item.currentStock;
-                  const quantity = restockQuantity[item.id] || 0;
-                  const totalCost = item.price * quantity;
+      <div className="restock-grid">
+        {/* Left: Medicine List */}
+        <div>
+          <div className="restock-medicines-list">
+            {lowStockItems.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "48px 24px", background: "#1e293b", borderRadius: 14, color: "#64748b" }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: "#94a3b8" }}>All medicines are well-stocked!</div>
+              </div>
+            ) : (
+              lowStockItems.map((item) => {
+                const isSelected = selectedItems.includes(item.id);
+                const quantity = restockQuantity[item.id] || 0;
+                const stockPct = Math.min((item.currentStock / item.minStock) * 100, 100);
+                const stockClass = getStockClass(item.currentStock);
+                const stockLabel = getStockLabel(item.currentStock);
 
-                  return (
-                    <tr key={item.id} className={selectedItems.includes(item.id) ? "selected" : ""}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.includes(item.id)}
-                          onChange={() => toggleSelectItem(item.id)}
+                return (
+                  <div
+                    key={item.id}
+                    className={`medicine-restock-card ${isSelected ? "selected" : ""}`}
+                    onClick={() => toggleSelectItem(item.id)}
+                  >
+                    <div className="med-restock-checkbox">{isSelected ? "✓" : ""}</div>
+                    <div className="med-restock-info">
+                      <div className="med-restock-name">{item.name}</div>
+                      <div className="med-restock-category">{item.category} · Rs {item.price}</div>
+                    </div>
+                    <div className="stock-level">
+                      <span className={`stock-badge ${stockClass}`}>{stockLabel}: {item.currentStock}</span>
+                      <div className="stock-bar-track">
+                        <div
+                          className="stock-bar-fill"
+                          style={{
+                            width: `${stockPct}%`,
+                            background: item.currentStock <= 5 ? "#ef4444" : item.currentStock <= 12 ? "#f59e0b" : "#22c55e",
+                          }}
                         />
-                      </td>
-                      <td className="medicine-name">{item.name}</td>
-                      <td>{item.category}</td>
-                      <td className={item.currentStock < item.minStock ? "low-stock" : ""}>
-                        {item.currentStock} units
-                      </td>
-                      <td>{item.minStock} units</td>
-                      <td className="shortage">{shortage} units</td>
-                      <td>Rs {item.price}</td>
-                      <td>
-                        <input
-                          type="number"
-                          value={quantity}
-                          onChange={(e) => updateQuantity(item.id, e.target.value)}
-                          min="0"
-                          max="1000"
-                          className="quantity-input"
-                          disabled={!selectedItems.includes(item.id)}
-                        />
-                      </td>
-                      <td className="total-cost">Rs {totalCost.toFixed(0)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                    <div className="restock-qty-input" onClick={(e) => e.stopPropagation()}>
+                      <label>Qty</label>
+                      <input
+                        type="number"
+                        value={quantity}
+                        onChange={(e) => updateQuantity(item.id, e.target.value)}
+                        min="0"
+                        max="1000"
+                        disabled={!isSelected}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
-        <div className="order-summary-section">
-          <h2>Order Summary</h2>
+        {/* Right: Order Panel */}
+        <div className="restock-order-panel">
+          <h3>🛒 Order Summary</h3>
 
-          <div className="supplier-selection">
-            <label>Select Supplier:</label>
-            <select
-              value={selectedSupplier}
-              onChange={(e) => setSelectedSupplier(e.target.value)}
-              className="supplier-select"
-            >
-              <option value="">Choose a supplier</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>
-                  {supplier.name} - {supplier.location}
-                </option>
-              ))}
-            </select>
-          </div>
+          <label style={{ fontSize: 12, color: "#64748b", marginBottom: 6, display: "block" }}>Select Supplier</label>
+          <select
+            className="supplier-select"
+            value={selectedSupplier}
+            onChange={(e) => setSelectedSupplier(e.target.value)}
+          >
+            <option value="">Choose a supplier…</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} — {s.location}</option>
+            ))}
+          </select>
 
-          {selectedItems.length > 0 ? (
-            <div className="order-items">
-              <h3>Items to Restock:</h3>
+          {selectedItems.length > 0 && (
+            <div className="selected-summary">
               {selectedItems.map((itemId) => {
-                const item = lowStockItems.find((entry) => entry.id === itemId);
-                const quantity = restockQuantity[itemId] || 0;
+                const item = lowStockItems.find((e) => e.id === itemId);
+                const qty = restockQuantity[itemId] || 0;
                 return (
-                  <div key={itemId} className="order-item">
-                    <span>{item.name}</span>
-                    <span>{quantity} units</span>
-                    <span>Rs {(item.price * quantity).toFixed(0)}</span>
+                  <div key={itemId} className="selected-summary-item">
+                    <strong>{item?.name}</strong>
+                    <span>{qty} units · Rs {((item?.price || 0) * qty).toFixed(0)}</span>
                   </div>
                 );
               })}
-              <div className="order-total">
-                <strong>Total Amount:</strong>
-                <strong>Rs {calculateTotal().toFixed(0)}</strong>
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 10, marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 700, color: "#4ade80" }}>
+                <span>Total</span>
+                <span>Rs {calculateTotal().toFixed(0)}</span>
               </div>
             </div>
-          ) : null}
+          )}
 
           <button
+            className="restock-submit-btn"
             onClick={placeRestockOrder}
-            className="place-order-btn"
             disabled={selectedItems.length === 0 || !selectedSupplier || submitting}
           >
-            {submitting ? "Placing..." : "Place Restock Order"}
+            {submitting ? "Placing Order…" : `Place Restock Order (${selectedItems.length} items)`}
           </button>
 
-          {recentOrders.length > 0 ? (
-            <div style={{ marginTop: 20 }}>
-              <h3>Recent Restock Orders</h3>
+          {statusMessage && (
+            <div className={`restock-status ${statusIsError ? "error" : ""}`}>
+              {statusIsError ? "⚠️" : "✅"} {statusMessage}
+            </div>
+          )}
+
+          {/* Recent Orders */}
+          {recentOrders.length > 0 && (
+            <div className="recent-restock-orders">
+              <h3>Recent Orders</h3>
               {recentOrders.map((order) => (
-                <div key={order.id} className="order-item">
-                  <span>#{order.id} - {order.vendorName}</span>
-                  <span>{order.status}</span>
-                  <span>Rs {order.total.toFixed(0)}</span>
+                <div key={order.id} className="restock-order-row">
+                  <span className="restock-order-id">#{order.id}</span>
+                  <span className="restock-order-vendor">{order.vendorName}</span>
+                  <span className="restock-order-total">Rs {Number(order.total).toFixed(0)}</span>
                 </div>
               ))}
             </div>
-          ) : null}
+          )}
         </div>
       </div>
     </div>

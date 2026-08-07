@@ -1,240 +1,253 @@
-.generate-report-container {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+/* ===== GenerateReport — Premium Admin UI ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+.report-page {
+  min-height: 100vh;
+  background: #0f172a;
+  font-family: 'Inter', sans-serif;
+  color: #e2e8f0;
+  padding: 28px;
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .report-header {
-  text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 28px;
 }
 
-.report-header h1 {
-  color: #0F4454;
-  margin-bottom: 10px;
+.report-header h2 {
+  font-size: 26px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.5px;
+  margin: 0 0 6px;
 }
 
-.report-header p {
-  color: #718096;
-}
+.report-header p { color: #64748b; font-size: 14px; }
 
-.success-message {
-  background: #48bb78;
-  color: white;
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  text-align: center;
-  animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.report-content {
+/* Grid */
+.report-grid {
   display: grid;
-  grid-template-columns: 1fr 1.5fr;
-  gap: 30px;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  align-items: start;
 }
 
-.report-form {
-  background: white;
+/* Report Options */
+.report-options-card {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.report-options-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 0 0 18px;
+}
+
+.report-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.report-type-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  height: fit-content;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
 }
 
-.report-form h2 {
-  margin-bottom: 20px;
-  color: #2d3748;
+.report-type-card:hover {
+  border-color: rgba(14,165,233,0.3);
+  background: rgba(14,165,233,0.05);
 }
 
-.form-group {
-  margin-bottom: 20px;
+.report-type-card.selected {
+  border-color: rgba(14,165,233,0.5);
+  background: rgba(14,165,233,0.1);
+  box-shadow: 0 0 0 2px rgba(14,165,233,0.15);
 }
 
-.form-group label {
+.report-type-icon {
+  font-size: 28px;
   display: block;
   margin-bottom: 8px;
-  font-weight: 500;
-  color: #2d3748;
 }
 
-.report-select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 14px;
+.report-type-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
 }
 
-.date-range {
+.selected .report-type-label {
+  color: #7dd3fc;
+}
+
+/* Date Range */
+.date-range-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 15px;
+  gap: 14px;
   margin-bottom: 20px;
 }
 
-.date-input {
+.date-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.date-field input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: #e2e8f0;
   font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
 }
 
-.format-buttons {
-  display: flex;
-  gap: 10px;
+.date-field input:focus {
+  border-color: rgba(14,165,233,0.4);
 }
 
-.format-btn {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  background: white;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.format-btn.active {
-  background: #0ea5e9;
-  color: white;
-  border-color: #0ea5e9;
-}
-
-.format-btn:hover {
-  background: #e2e8f0;
-}
-
+/* Generate Button */
 .generate-btn {
   width: 100%;
-  background: #0ea5e9;
+  padding: 13px;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
   color: white;
   border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 10px;
+  transition: opacity 0.2s, transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .generate-btn:hover:not(:disabled) {
-  background: #0284c7;
-  transform: translateY(-2px);
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 .generate-btn:disabled {
-  background: #cbd5e0;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.report-preview {
-  background: white;
-  border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+/* Report Preview Card */
+.report-preview-card {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 22px;
+  position: sticky;
+  top: 20px;
 }
 
-.report-preview h2 {
-  margin-bottom: 20px;
-  color: #2d3748;
+.report-preview-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 0 0 16px;
 }
 
-.preview-content {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 20px;
-}
-
-.preview-content h3 {
-  margin: 0 0 10px 0;
-  color: #0F4454;
-  font-size: 20px;
-}
-
-.preview-date {
-  color: #718096;
-  font-size: 12px;
-  margin-bottom: 20px;
-}
-
-.preview-table {
-  overflow-x: auto;
-  margin: 20px 0;
-}
-
-.preview-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.preview-table th,
-.preview-table td {
-  padding: 10px;
-  text-align: left;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.preview-table th {
-  background: #f7fafd;
-  font-weight: 600;
-  color: #2d3748;
-}
-
-.preview-stats {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.stat {
+.report-stat-item {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 13.5px;
 }
 
-.stat span {
-  color: #718096;
+.report-stat-item:last-child {
+  border-bottom: none;
 }
 
-.stat strong {
-  color: #2d3748;
+.report-stat-label {
+  color: #64748b;
 }
 
-@media (max-width: 968px) {
-  .report-content {
-    grid-template-columns: 1fr;
-  }
-  
-  .date-range {
-    grid-template-columns: 1fr;
-  }
+.report-stat-value {
+  color: #e2e8f0;
+  font-weight: 600;
 }
 
-@media (max-width: 768px) {
-  .format-buttons {
-    flex-direction: column;
-  }
-  
-  .preview-table {
-    font-size: 12px;
-  }
-  
-  .preview-table th,
-  .preview-table td {
-    padding: 6px;
-  }
+.report-status {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(34,197,94,0.12);
+  color: #4ade80;
+  border: 1px solid rgba(34,197,94,0.2);
+  text-align: center;
+}
+
+.report-status.error {
+  background: rgba(239,68,68,0.12);
+  color: #f87171;
+  border-color: rgba(239,68,68,0.2);
+}
+
+/* Download Btn */
+.download-btn {
+  width: 100%;
+  padding: 12px;
+  background: rgba(34,197,94,0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.download-btn:hover {
+  background: rgba(34,197,94,0.2);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 900px) {
+  .report-grid { grid-template-columns: 1fr; }
+  .report-preview-card { position: static; }
+}
+
+@media (max-width: 600px) {
+  .report-page { padding: 16px; }
+  .date-range-row { grid-template-columns: 1fr; }
 }

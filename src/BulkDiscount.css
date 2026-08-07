@@ -1,220 +1,243 @@
-.bulk-discount-container {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+/* ===== BulkDiscount — Premium Admin UI ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+.bulk-page {
+  min-height: 100vh;
+  background: #0f172a;
+  font-family: 'Inter', sans-serif;
+  color: #e2e8f0;
+  padding: 28px;
+  animation: fadeIn 0.4s ease;
 }
 
-.discount-header {
-  text-align: center;
-  margin-bottom: 30px;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.discount-header h1 {
-  color: #0F4454;
-  margin-bottom: 10px;
+.bulk-header {
+  margin-bottom: 28px;
 }
 
-.discount-header p {
-  color: #718096;
+.bulk-header h2 {
+  font-size: 26px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.5px;
+  margin: 0 0 6px;
 }
 
-.success-message {
-  background: #48bb78;
-  color: white;
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  text-align: center;
-  animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.discount-content {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 30px;
-}
-
-.discount-form-section {
-  background: white;
-  border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  height: fit-content;
-}
-
-.discount-form-section h2 {
-  margin-bottom: 20px;
-  color: #2d3748;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #2d3748;
-}
-
-.radio-group {
-  display: flex;
-  gap: 20px;
-}
-
-.radio-group label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-weight: normal;
-}
-
-.discount-input {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+.bulk-header p {
+  color: #64748b;
   font-size: 14px;
 }
 
-.discount-input:focus {
-  outline: none;
-  border-color: #0ea5e9;
+/* Campaign Cards Grid */
+.campaigns-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+  margin-bottom: 28px;
 }
 
-.apply-discount-btn {
-  width: 100%;
-  background: #0ea5e9;
-  color: white;
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
+.campaign-card {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 22px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.campaign-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+}
+
+.campaign-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+}
+
+.campaign-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.campaign-badge.active   { background: rgba(34,197,94,0.15);  color: #4ade80; }
+.campaign-badge.inactive { background: rgba(239,68,68,0.15);  color: #f87171; }
+.campaign-badge.draft    { background: rgba(245,158,11,0.15); color: #fbbf24; }
+
+.campaign-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 8px;
+}
+
+.campaign-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(99,102,241,0.15);
+  border: 1px solid rgba(99,102,241,0.25);
+  color: #a5b4fc;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+
+.campaign-discount {
+  font-size: 36px;
+  font-weight: 900;
+  color: #0ea5e9;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.campaign-discount span {
   font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 10px;
+  font-weight: 500;
+  color: #64748b;
 }
 
-.apply-discount-btn:hover {
-  background: #0284c7;
-  transform: translateY(-2px);
+.campaign-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
 }
 
-.medicines-section {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.medicines-header {
+.campaign-meta-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  font-size: 12.5px;
+  color: #64748b;
 }
 
-.medicines-header h2 {
-  margin: 0;
-  color: #2d3748;
+.campaign-meta-item strong {
+  color: #94a3b8;
 }
 
-.select-all-btn {
-  background: #e2e8f0;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+/* Create Campaign Form */
+.create-campaign-card {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 28px;
 }
 
-.select-all-btn:hover {
-  background: #cbd5e0;
-}
-
-.medicines-list {
-  overflow-x: auto;
-}
-
-.medicines-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.medicines-table th,
-.medicines-table td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.medicines-table th {
-  background: #f7fafd;
-  font-weight: 600;
-  color: #2d3748;
-}
-
-.medicines-table tr.selected {
-  background: #f0f9ff;
-}
-
-.medicine-name {
-  font-weight: 500;
-}
-
-.discount-badge {
-  background: #f59e0b;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-}
-
-.discounted-price {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.old-price {
-  text-decoration: line-through;
-  color: #ef4444;
-  font-size: 12px;
-}
-
-.new-price {
-  color: #48bb78;
-  font-weight: bold;
+.create-campaign-card h3 {
   font-size: 16px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 0 0 20px;
 }
 
-@media (max-width: 968px) {
-  .discount-content {
-    grid-template-columns: 1fr;
-  }
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
-@media (max-width: 768px) {
-  .medicines-table {
-    font-size: 12px;
-  }
-  
-  .medicines-table th,
-  .medicines-table td {
-    padding: 8px;
-  }
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-group input,
+.form-group select {
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: rgba(14,165,233,0.4);
+  background: rgba(14,165,233,0.05);
+}
+
+.form-group select option { background: #1e293b; }
+
+.submit-btn {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.submit-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.status-msg {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(34,197,94,0.12);
+  color: #4ade80;
+  border: 1px solid rgba(34,197,94,0.2);
+}
+
+.status-msg.error {
+  background: rgba(239,68,68,0.12);
+  color: #f87171;
+  border-color: rgba(239,68,68,0.2);
+}
+
+@media (max-width: 600px) {
+  .bulk-page { padding: 16px; }
+  .campaign-discount { font-size: 28px; }
 }
