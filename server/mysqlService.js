@@ -465,6 +465,20 @@ export const mysqlService = {
     }));
   },
 
+  async getMedicineById(id) {
+    const p = getPool();
+    const [rows] = await p.query("SELECT * FROM medicines WHERE id = ? LIMIT 1", [id]);
+    if (!rows[0]) return null;
+    const r = rows[0];
+    return {
+      ...r,
+      price: Number(r.price),
+      discount_percent: Number(r.discount_percent),
+      stock: Number(r.stock),
+      is_active: Number(r.is_active),
+    };
+  },
+
   async createMedicine(medicineData) {
     const p = getPool();
     const [result] = await p.query(
