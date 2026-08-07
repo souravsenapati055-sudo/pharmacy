@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiRequest, storeAuthSession } from "../lib/auth";
-import { loginWithGoogle } from "../lib/firebase";
 
 export default function LoginModern({ setUser }) {
   const { role = "customer" } = useParams();
@@ -80,42 +79,38 @@ export default function LoginModern({ setUser }) {
     }
   };
 
-  const handleGoogleSignInClick = async () => {
+  const handleGoogleSignInClick = () => {
     setAuthError("");
     setStatusMessage("");
-    setIsLoading(true);
-
-    try {
-      // Try real Firebase popup first
-      const userPayload = await loginWithGoogle(role);
-      finishLogin({ user: userPayload, token: "google-firebase-token-" + Date.now() });
-    } catch (error) {
-      // If Firebase Popup/OAuth is unconfigured in Console, open clean Google Email entry modal
-      setShowGoogleModal(true);
-    } finally {
-      setIsLoading(false);
-    }
+    setShowGoogleModal(true);
   };
 
-  const handleConfirmGoogleModal = (e) => {
+  const handleConfirmGoogleModal = async (e) => {
     e.preventDefault();
     if (!googleEmail.trim()) return;
 
     const emailStr = googleEmail.trim();
     const nameStr = googleName.trim() || emailStr.split("@")[0] || "Google User";
 
-    const googleUser = {
-      id: "google-user-" + Date.now(),
-      name: role === "admin" ? `${nameStr} (Admin)` : nameStr,
-      email: emailStr,
-      phone: "9999999999",
-      profilePhoto: `https://via.placeholder.com/150?text=${encodeURIComponent(nameStr)}`,
-      role: role === "admin" ? "admin" : "customer",
-      isAdmin: role === "admin",
-    };
+    setIsLoading(true);
+    setAuthError("");
+    try {
+      const payload = await apiRequest("/auth/google", {
+        method: "POST",
+        body: JSON.stringify({
+          email: emailStr,
+          name: nameStr,
+          role,
+        }),
+      });
 
-    setShowGoogleModal(false);
-    finishLogin({ user: googleUser, token: "google-auth-token-" + Date.now() });
+      setShowGoogleModal(false);
+      finishLogin(payload);
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleRequestOtp = async () => {

@@ -380,9 +380,11 @@ export const mysqlService = {
     const updates = [];
     const values = [];
 
+    if (userData.role !== undefined) { updates.push("role = ?"); values.push(userData.role); }
     if (userData.name !== undefined) { updates.push("name = ?"); values.push(userData.name); }
     if (userData.email !== undefined) { updates.push("email = ?"); values.push(userData.email); }
     if (userData.phone !== undefined) { updates.push("phone = ?"); values.push(userData.phone); }
+    if (userData.password_hash !== undefined) { updates.push("password_hash = ?"); values.push(userData.password_hash); }
     if (userData.business_name !== undefined) { updates.push("business_name = ?"); values.push(userData.business_name); }
     if (userData.business_address !== undefined) { updates.push("business_address = ?"); values.push(userData.business_address); }
     if (userData.verification_document !== undefined) { updates.push("verification_document = ?"); values.push(userData.verification_document); }

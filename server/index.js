@@ -1223,6 +1223,46 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { email, name, googleId, profilePhoto, role = "customer" } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Google email is required." });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    let userRow = await firestoreService.findUserByEmail(cleanEmail);
+
+    if (!userRow) {
+      const dummyPhone = "9" + Math.floor(100000000 + Math.random() * 900000000);
+      const dummyPasswordHash = await bcrypt.hash("google-auth-" + Date.now(), 10);
+      const userName = name ? name.trim() : cleanEmail.split("@")[0];
+
+      userRow = await firestoreService.createUser({
+        role,
+        name: userName,
+        email: cleanEmail,
+        phone: dummyPhone,
+        password_hash: dummyPasswordHash,
+        profile_photo: profilePhoto || "",
+      });
+    } else if (userRow.role !== role) {
+      userRow = await firestoreService.updateUser(userRow.id, { role });
+    }
+
+    const user = sanitizeUser(userRow);
+    res.json({
+      message: "Signed in with Google successfully.",
+      token: createToken(user),
+      user,
+    });
+  } catch (error) {
+    console.error("Google auth error:", error);
+    res.status(500).json({ message: "Unable to sign in with Google right now." });
+  }
+});
+
 app.post("/api/auth/login/request-otp", async (req, res) => {
   try {
     const { identifier, role = "customer" } = req.body;
