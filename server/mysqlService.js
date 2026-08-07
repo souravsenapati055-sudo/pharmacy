@@ -283,9 +283,10 @@ export async function initializeDatabase(retries = 5, delayMs = 3000) {
 
         await p.query(
           `INSERT INTO users (id, role, name, email, phone, password_hash, business_name, business_address, verification_document) VALUES
-           (1, 'admin', 'System Admin', 'admin@pharmacy.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001'),
-           (2, 'customer', 'Demo Customer', 'customer@pharmacy.com', '9876543210', ?, NULL, NULL, NULL);`,
-          [defaultAdminHash, defaultCustomerHash]
+           (1, 'admin', 'System Admin', 'admin@gmail.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001'),
+           (2, 'admin', 'Pharmacy Admin', 'admin@pharmacy.com', '9999999998', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-002'),
+           (3, 'customer', 'Demo Customer', 'customer@pharmacy.com', '9876543210', ?, NULL, NULL, NULL);`,
+          [defaultAdminHash, defaultAdminHash, defaultCustomerHash]
         );
       }
 

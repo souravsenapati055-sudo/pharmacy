@@ -1194,23 +1194,27 @@ app.post("/api/auth/signup", async (req, res) => {
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { identifier, password, role = "customer" } = req.body;
+    const { identifier, password } = req.body;
 
     if (!identifier || !password) {
       return res.status(400).json({ message: "Identifier and password are required." });
     }
 
-    const userRow = await findUserByIdentifier(identifier, role);
+    const cleanIdentifier = String(identifier).trim();
+    const userRow = await findUserByIdentifier(cleanIdentifier);
     if (!userRow) {
+      console.warn(`⚠️ Login failed: User non-existent for identifier "${cleanIdentifier}"`);
       return res.status(401).json({ message: "Invalid credentials." });
     }
 
     const isMatch = await bcrypt.compare(password, userRow.password_hash);
     if (!isMatch) {
+      console.warn(`⚠️ Login failed: Password mismatch for user "${cleanIdentifier}"`);
       return res.status(401).json({ message: "Invalid credentials." });
     }
 
     const user = sanitizeUser(userRow);
+    console.log(`✅ Login successful: User "${cleanIdentifier}" authenticated as role "${user.role}"`);
     res.json({
       message: "Signed in successfully.",
       token: createToken(user),
