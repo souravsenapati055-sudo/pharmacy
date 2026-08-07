@@ -111,8 +111,13 @@ export async function initializeDatabase(retries = 5, delayMs = 3000) {
 
       const p = getPool();
 
-      // Test database connectivity
+      // Test database connectivity and select database
       await p.query("SELECT 1");
+      if (config.database) {
+        try {
+          await p.query(`USE \`${config.database}\`;`);
+        } catch (e) {}
+      }
 
       // Create tables if they do not exist
       await p.query(`
