@@ -574,14 +574,13 @@ function createOtpCode() {
   return `${Math.floor(100000 + Math.random() * 900000)}`;
 }
 
-async function findUserByIdentifier(identifier, role) {
-  const user = isEmail(identifier)
-    ? await firestoreService.findUserByEmail(identifier)
-    : await firestoreService.findUserByPhone(identifier);
-  if (user && user.role === role) {
-    return user;
-  }
-  return null;
+async function findUserByIdentifier(identifier) {
+  if (!identifier) return null;
+  const clean = String(identifier).trim();
+  const user = isEmail(clean)
+    ? await firestoreService.findUserByEmail(clean)
+    : await firestoreService.findUserByPhone(clean);
+  return user || null;
 }
 
 async function createOtp(userId, purpose) {
