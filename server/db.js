@@ -1,4 +1,4 @@
-import { initializeDatabase, firestoreService } from "./firestore.js";
+import { initializeDatabase, mysqlService } from "./mysqlService.js";
 
-export { initializeDatabase, firestoreService };
-export default firestoreService;
+export { initializeDatabase, mysqlService, mysqlService as firestoreService };
+export default mysqlService;

@@ -53,6 +53,18 @@ CREATE TABLE IF NOT EXISTS delivery_partners (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS vendor_partners (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  vendor_type ENUM('supplier', 'manufacturer', 'wholesaler', 'distributor') NOT NULL DEFAULT 'wholesaler',
+  name VARCHAR(160) NOT NULL,
+  phone VARCHAR(20) NULL,
+  location VARCHAR(255) NULL,
+  rating DECIMAL(3,2) NOT NULL DEFAULT 4.50,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS orders (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
@@ -93,4 +105,49 @@ CREATE TABLE IF NOT EXISTS order_items (
   CONSTRAINT fk_order_items_medicine
     FOREIGN KEY (medicine_id) REFERENCES medicines(id)
     ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS procurement_orders (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  vendor_id INT NOT NULL,
+  vendor_type VARCHAR(80) NOT NULL,
+  source VARCHAR(80) NOT NULL,
+  status ENUM('Pending', 'Approved', 'Shipped', 'Delivered', 'Cancelled') NOT NULL DEFAULT 'Pending',
+  urgency VARCHAR(40) NULL,
+  total DECIMAL(10,2) NOT NULL DEFAULT 0,
+  notes VARCHAR(255) NULL,
+  created_by_user_id INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_procurement_vendor
+    FOREIGN KEY (vendor_id) REFERENCES vendor_partners(id)
+    ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS procurement_order_items (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  procurement_order_id INT NOT NULL,
+  medicine_id INT NOT NULL,
+  medicine_name VARCHAR(160) NOT NULL,
+  unit_price DECIMAL(10,2) NOT NULL,
+  quantity INT NOT NULL,
+  total_price DECIMAL(10,2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_procurement_items_order
+    FOREIGN KEY (procurement_order_id) REFERENCES procurement_orders(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_procurement_items_medicine
+    FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+    ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS discount_campaigns (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(160) NOT NULL,
+  discount_type VARCHAR(50) NOT NULL,
+  discount_value DECIMAL(10,2) NOT NULL,
+  min_quantity INT NULL,
+  valid_until DATETIME NULL,
+  promo_code VARCHAR(50) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
