@@ -5,7 +5,13 @@ import bcrypt from "bcryptjs";
 dotenv.config();
 
 function getDbConfig() {
-  const dbUrl = process.env.MYSQL_URL || process.env.DATABASE_URL || process.env.MYSQL_PUBLIC_URL;
+  const dbUrl =
+    process.env.MYSQL_URL ||
+    process.env.DATABASE_URL ||
+    process.env.MYSQL_PUBLIC_URL ||
+    process.env.MYSQLPRIVATEURL ||
+    process.env.MYSQL_PRIVATE_URL;
+
   if (dbUrl) {
     try {
       const parsed = new URL(dbUrl);
@@ -19,6 +25,7 @@ function getDbConfig() {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
+        connectTimeout: 10000,
       };
     } catch (e) {
       console.warn("⚠️ Failed to parse database URL, falling back to individual env variables:", e.message);
@@ -26,15 +33,16 @@ function getDbConfig() {
   }
 
   return {
-    host: process.env.DB_HOST || process.env.MYSQLHOST || "localhost",
-    port: Number(process.env.DB_PORT || process.env.MYSQLPORT || 3306),
-    user: process.env.DB_USER || process.env.MYSQLUSER || "root",
-    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || "Sourav@9002249524",
-    database: process.env.DB_NAME || process.env.MYSQLDATABASE || "pharmacy_app",
+    host: process.env.DB_HOST || process.env.MYSQLHOST || process.env.MYSQL_HOST || "localhost",
+    port: Number(process.env.DB_PORT || process.env.MYSQLPORT || process.env.MYSQL_PORT || 3306),
+    user: process.env.DB_USER || process.env.MYSQLUSER || process.env.MYSQL_USER || "root",
+    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || "Sourav@9002249524",
+    database: process.env.DB_NAME || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || "pharmacy_app",
     ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
+    connectTimeout: 10000,
   };
 }
 
@@ -75,233 +83,247 @@ const SEED_VENDOR_PARTNERS = [
   { id: 9, vendor_type: "supplier", name: "Pfizer", phone: "9876543214", location: "Chennai", rating: 4.80, is_active: 1 }
 ];
 
-export async function initializeDatabase() {
+export async function initializeDatabase(retries = 5, delayMs = 3000) {
   const config = getDbConfig();
-  
-  // First ensure Database exists (for local MySQL instance)
-  try {
-    const rootConnection = await mysql.createConnection({
-      host: config.host,
-      port: config.port,
-      user: config.user,
-      password: config.password,
-      ssl: config.ssl,
-    });
-    await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${config.database}\`;`);
-    await rootConnection.end();
-  } catch (err) {
-    console.warn("⚠️ Could not create database directly (may be pre-created by provider):", err.message);
-  }
+  console.log(`🔌 Attempting MySQL connection to host: ${config.host}:${config.port}, database: ${config.database}, user: ${config.user}`);
 
-  const p = getPool();
+  for (let i = 1; i <= retries; i++) {
+    try {
+      // First ensure Database exists (for local or root connection)
+      try {
+        const rootConnection = await mysql.createConnection({
+          host: config.host,
+          port: config.port,
+          user: config.user,
+          password: config.password,
+          ssl: config.ssl,
+          connectTimeout: 5000,
+        });
+        await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${config.database}\`;`);
+        await rootConnection.end();
+      } catch (err) {
+        // Pre-created database on Railway or restricted root permissions
+      }
 
-  // Create tables if they do not exist
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      role VARCHAR(40) NOT NULL DEFAULT 'customer',
-      name VARCHAR(120) NOT NULL,
-      email VARCHAR(191) NOT NULL UNIQUE,
-      phone VARCHAR(20) NOT NULL UNIQUE,
-      password_hash VARCHAR(255) NOT NULL,
-      business_name VARCHAR(160) NULL,
-      business_address VARCHAR(255) NULL,
-      verification_document VARCHAR(255) NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    );
-  `);
+      const p = getPool();
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS auth_otps (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      user_id INT NOT NULL,
-      purpose VARCHAR(40) NOT NULL,
-      otp_code VARCHAR(6) NOT NULL,
-      expires_at DATETIME NOT NULL,
-      used_at DATETIME NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT fk_auth_otps_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
+      // Test database connectivity
+      await p.query("SELECT 1");
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS medicines (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      name VARCHAR(160) NOT NULL,
-      category VARCHAR(120) NOT NULL,
-      description TEXT NULL,
-      image_url VARCHAR(255) NULL,
-      price DECIMAL(10,2) NOT NULL,
-      discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
-      stock INT NOT NULL DEFAULT 0,
-      is_active TINYINT(1) NOT NULL DEFAULT 1,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    );
-  `);
+      // Create tables if they do not exist
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          role VARCHAR(40) NOT NULL DEFAULT 'customer',
+          name VARCHAR(120) NOT NULL,
+          email VARCHAR(191) NOT NULL UNIQUE,
+          phone VARCHAR(20) NOT NULL UNIQUE,
+          password_hash VARCHAR(255) NOT NULL,
+          business_name VARCHAR(160) NULL,
+          business_address VARCHAR(255) NULL,
+          verification_document VARCHAR(255) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+      `);
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS delivery_partners (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      name VARCHAR(120) NOT NULL,
-      phone VARCHAR(20) NOT NULL UNIQUE,
-      active_order_count INT NOT NULL DEFAULT 0,
-      completed_order_count INT NOT NULL DEFAULT 0,
-      is_active TINYINT(1) NOT NULL DEFAULT 1,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    );
-  `);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS auth_otps (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          user_id INT NOT NULL,
+          purpose VARCHAR(40) NOT NULL,
+          otp_code VARCHAR(6) NOT NULL,
+          expires_at DATETIME NOT NULL,
+          used_at DATETIME NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_auth_otps_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+      `);
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS vendor_partners (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      vendor_type VARCHAR(40) NOT NULL DEFAULT 'wholesaler',
-      name VARCHAR(160) NOT NULL,
-      phone VARCHAR(20) NULL,
-      location VARCHAR(255) NULL,
-      rating DECIMAL(3,2) NOT NULL DEFAULT 4.50,
-      is_active TINYINT(1) NOT NULL DEFAULT 1,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    );
-  `);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS medicines (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          name VARCHAR(160) NOT NULL,
+          category VARCHAR(120) NOT NULL,
+          description TEXT NULL,
+          image_url VARCHAR(255) NULL,
+          price DECIMAL(10,2) NOT NULL,
+          discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+          stock INT NOT NULL DEFAULT 0,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+      `);
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS orders (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      user_id INT NOT NULL,
-      delivery_partner_id INT NULL,
-      status VARCHAR(40) NOT NULL DEFAULT 'Processing',
-      payment_method VARCHAR(40) NOT NULL,
-      payment_status VARCHAR(40) NOT NULL DEFAULT 'pending',
-      subtotal DECIMAL(10,2) NOT NULL,
-      discount_total DECIMAL(10,2) NOT NULL DEFAULT 0,
-      delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
-      total DECIMAL(10,2) NOT NULL,
-      address_label VARCHAR(80) NOT NULL,
-      address_details VARCHAR(255) NOT NULL,
-      notes VARCHAR(255) NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      CONSTRAINT fk_orders_delivery_partner FOREIGN KEY (delivery_partner_id) REFERENCES delivery_partners(id) ON DELETE SET NULL
-    );
-  `);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS delivery_partners (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          name VARCHAR(120) NOT NULL,
+          phone VARCHAR(20) NOT NULL UNIQUE,
+          active_order_count INT NOT NULL DEFAULT 0,
+          completed_order_count INT NOT NULL DEFAULT 0,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+      `);
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS order_items (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      order_id INT NOT NULL,
-      medicine_id INT NOT NULL,
-      medicine_name VARCHAR(160) NOT NULL,
-      unit_price DECIMAL(10,2) NOT NULL,
-      discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
-      quantity INT NOT NULL,
-      total_price DECIMAL(10,2) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-      CONSTRAINT fk_order_items_medicine FOREIGN KEY (medicine_id) REFERENCES medicines(id) ON DELETE RESTRICT
-    );
-  `);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS vendor_partners (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          vendor_type VARCHAR(40) NOT NULL DEFAULT 'wholesaler',
+          name VARCHAR(160) NOT NULL,
+          phone VARCHAR(20) NULL,
+          location VARCHAR(255) NULL,
+          rating DECIMAL(3,2) NOT NULL DEFAULT 4.50,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+      `);
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS procurement_orders (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      vendor_id INT NOT NULL,
-      vendor_type VARCHAR(80) NOT NULL,
-      source VARCHAR(80) NOT NULL,
-      status VARCHAR(40) NOT NULL DEFAULT 'Pending',
-      urgency VARCHAR(40) NULL,
-      total DECIMAL(10,2) NOT NULL DEFAULT 0,
-      notes VARCHAR(255) NULL,
-      created_by_user_id INT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_procurement_vendor FOREIGN KEY (vendor_id) REFERENCES vendor_partners(id) ON DELETE RESTRICT
-    );
-  `);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS orders (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          user_id INT NOT NULL,
+          delivery_partner_id INT NULL,
+          status VARCHAR(40) NOT NULL DEFAULT 'Processing',
+          payment_method VARCHAR(40) NOT NULL,
+          payment_status VARCHAR(40) NOT NULL DEFAULT 'pending',
+          subtotal DECIMAL(10,2) NOT NULL,
+          discount_total DECIMAL(10,2) NOT NULL DEFAULT 0,
+          delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+          total DECIMAL(10,2) NOT NULL,
+          address_label VARCHAR(80) NOT NULL,
+          address_details VARCHAR(255) NOT NULL,
+          notes VARCHAR(255) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          CONSTRAINT fk_orders_delivery_partner FOREIGN KEY (delivery_partner_id) REFERENCES delivery_partners(id) ON DELETE SET NULL
+        );
+      `);
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS procurement_order_items (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      procurement_order_id INT NOT NULL,
-      medicine_id INT NOT NULL,
-      medicine_name VARCHAR(160) NOT NULL,
-      unit_price DECIMAL(10,2) NOT NULL,
-      quantity INT NOT NULL,
-      total_price DECIMAL(10,2) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT fk_procurement_items_order FOREIGN KEY (procurement_order_id) REFERENCES procurement_orders(id) ON DELETE CASCADE,
-      CONSTRAINT fk_procurement_items_medicine FOREIGN KEY (medicine_id) REFERENCES medicines(id) ON DELETE RESTRICT
-    );
-  `);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS order_items (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          order_id INT NOT NULL,
+          medicine_id INT NOT NULL,
+          medicine_name VARCHAR(160) NOT NULL,
+          unit_price DECIMAL(10,2) NOT NULL,
+          discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+          quantity INT NOT NULL,
+          total_price DECIMAL(10,2) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+          CONSTRAINT fk_order_items_medicine FOREIGN KEY (medicine_id) REFERENCES medicines(id) ON DELETE RESTRICT
+        );
+      `);
 
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS discount_campaigns (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      title VARCHAR(160) NOT NULL,
-      discount_type VARCHAR(50) NOT NULL,
-      discount_value DECIMAL(10,2) NOT NULL,
-      min_quantity INT NULL,
-      valid_until DATETIME NULL,
-      promo_code VARCHAR(50) NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS procurement_orders (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          vendor_id INT NOT NULL,
+          vendor_type VARCHAR(80) NOT NULL,
+          source VARCHAR(80) NOT NULL,
+          status VARCHAR(40) NOT NULL DEFAULT 'Pending',
+          urgency VARCHAR(40) NULL,
+          total DECIMAL(10,2) NOT NULL DEFAULT 0,
+          notes VARCHAR(255) NULL,
+          created_by_user_id INT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          CONSTRAINT fk_procurement_vendor FOREIGN KEY (vendor_id) REFERENCES vendor_partners(id) ON DELETE RESTRICT
+        );
+      `);
 
-  // Seed default data if users table is empty
-  const [usersRows] = await p.query("SELECT COUNT(*) AS count FROM users");
-  if (usersRows[0].count === 0) {
-    const defaultAdminHash = await bcrypt.hash("admin123", 10);
-    const defaultCustomerHash = await bcrypt.hash("customer123", 10);
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS procurement_order_items (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          procurement_order_id INT NOT NULL,
+          medicine_id INT NOT NULL,
+          medicine_name VARCHAR(160) NOT NULL,
+          unit_price DECIMAL(10,2) NOT NULL,
+          quantity INT NOT NULL,
+          total_price DECIMAL(10,2) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_procurement_items_order FOREIGN KEY (procurement_order_id) REFERENCES procurement_orders(id) ON DELETE CASCADE,
+          CONSTRAINT fk_procurement_items_medicine FOREIGN KEY (medicine_id) REFERENCES medicines(id) ON DELETE RESTRICT
+        );
+      `);
 
-    await p.query(
-      `INSERT INTO users (id, role, name, email, phone, password_hash, business_name, business_address, verification_document) VALUES
-       (1, 'admin', 'System Admin', 'admin@pharmacy.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001'),
-       (2, 'customer', 'Demo Customer', 'customer@pharmacy.com', '9876543210', ?, NULL, NULL, NULL);`,
-      [defaultAdminHash, defaultCustomerHash]
-    );
-  }
+      await p.query(`
+        CREATE TABLE IF NOT EXISTS discount_campaigns (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          title VARCHAR(160) NOT NULL,
+          discount_type VARCHAR(50) NOT NULL,
+          discount_value DECIMAL(10,2) NOT NULL,
+          min_quantity INT NULL,
+          valid_until DATETIME NULL,
+          promo_code VARCHAR(50) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
 
-  // Seed medicines if empty
-  const [medsRows] = await p.query("SELECT COUNT(*) AS count FROM medicines");
-  if (medsRows[0].count === 0) {
-    for (const med of SEED_MEDICINES) {
-      await p.query(
-        `INSERT INTO medicines (id, name, category, description, image_url, price, discount_percent, stock, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [med.id, med.name, med.category, med.description, med.image_url, med.price, med.discount_percent, med.stock, med.is_active]
-      );
+      // Seed default data if users table is empty
+      const [usersRows] = await p.query("SELECT COUNT(*) AS count FROM users");
+      if (usersRows[0].count === 0) {
+        const defaultAdminHash = await bcrypt.hash("admin123", 10);
+        const defaultCustomerHash = await bcrypt.hash("customer123", 10);
+
+        await p.query(
+          `INSERT INTO users (id, role, name, email, phone, password_hash, business_name, business_address, verification_document) VALUES
+           (1, 'admin', 'System Admin', 'admin@pharmacy.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001'),
+           (2, 'customer', 'Demo Customer', 'customer@pharmacy.com', '9876543210', ?, NULL, NULL, NULL);`,
+          [defaultAdminHash, defaultCustomerHash]
+        );
+      }
+
+      // Seed medicines if empty
+      const [medsRows] = await p.query("SELECT COUNT(*) AS count FROM medicines");
+      if (medsRows[0].count === 0) {
+        for (const med of SEED_MEDICINES) {
+          await p.query(
+            `INSERT INTO medicines (id, name, category, description, image_url, price, discount_percent, stock, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [med.id, med.name, med.category, med.description, med.image_url, med.price, med.discount_percent, med.stock, med.is_active]
+          );
+        }
+      }
+
+      // Seed delivery partners if empty
+      const [delRows] = await p.query("SELECT COUNT(*) AS count FROM delivery_partners");
+      if (delRows[0].count === 0) {
+        for (const d of SEED_DELIVERY_PARTNERS) {
+          await p.query(
+            `INSERT INTO delivery_partners (id, name, phone, active_order_count, completed_order_count, is_active)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [d.id, d.name, d.phone, d.active_order_count, d.completed_order_count, d.is_active]
+          );
+        }
+      }
+
+      // Seed vendor partners if empty
+      const [venRows] = await p.query("SELECT COUNT(*) AS count FROM vendor_partners");
+      if (venRows[0].count === 0) {
+        for (const v of SEED_VENDOR_PARTNERS) {
+          await p.query(
+            `INSERT INTO vendor_partners (id, vendor_type, name, phone, location, rating, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [v.id, v.vendor_type, v.name, v.phone, v.location, v.rating, v.is_active]
+          );
+        }
+      }
+
+      console.log("✅ MySQL Database initialized successfully");
+      return;
+    } catch (err) {
+      console.warn(`⚠️ MySQL Connection attempt ${i}/${retries} failed (${err.message}). Retrying in ${delayMs / 1000}s...`);
+      if (i === retries) throw err;
+      await new Promise((res) => setTimeout(res, delayMs));
     }
   }
-
-  // Seed delivery partners if empty
-  const [delRows] = await p.query("SELECT COUNT(*) AS count FROM delivery_partners");
-  if (delRows[0].count === 0) {
-    for (const d of SEED_DELIVERY_PARTNERS) {
-      await p.query(
-        `INSERT INTO delivery_partners (id, name, phone, active_order_count, completed_order_count, is_active)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [d.id, d.name, d.phone, d.active_order_count, d.completed_order_count, d.is_active]
-      );
-    }
-  }
-
-  // Seed vendor partners if empty
-  const [venRows] = await p.query("SELECT COUNT(*) AS count FROM vendor_partners");
-  if (venRows[0].count === 0) {
-    for (const v of SEED_VENDOR_PARTNERS) {
-      await p.query(
-        `INSERT INTO vendor_partners (id, vendor_type, name, phone, location, rating, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [v.id, v.vendor_type, v.name, v.phone, v.location, v.rating, v.is_active]
-      );
-    }
-  }
-
-  console.log("✅ MySQL Database initialized successfully");
 }
 
 export const mysqlService = {
