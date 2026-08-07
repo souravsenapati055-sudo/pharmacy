@@ -275,20 +275,44 @@ export async function initializeDatabase(retries = 5, delayMs = 3000) {
         );
       `);
 
-      // Seed default data if users table is empty
-      const [usersRows] = await p.query("SELECT COUNT(*) AS count FROM users");
-      if (usersRows[0].count === 0) {
-        const defaultAdminHash = await bcrypt.hash("admin123", 10);
-        const defaultCustomerHash = await bcrypt.hash("customer123", 10);
+      // Ensure primary accounts always exist with correct password hash on any DB startup (e.g. Railway / Cloud DB)
+      const defaultAdminHash = await bcrypt.hash("admin123", 10);
+      const defaultCustomerHash = await bcrypt.hash("customer123", 10);
 
-        await p.query(
-          `INSERT INTO users (id, role, name, email, phone, password_hash, business_name, business_address, verification_document) VALUES
-           (1, 'admin', 'System Admin', 'admin@gmail.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001'),
-           (2, 'admin', 'Pharmacy Admin', 'admin@pharmacy.com', '9999999998', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-002'),
-           (3, 'customer', 'Demo Customer', 'customer@pharmacy.com', '9876543210', ?, NULL, NULL, NULL);`,
-          [defaultAdminHash, defaultAdminHash, defaultCustomerHash]
-        );
-      }
+      await p.query(
+        `INSERT INTO users (role, name, email, phone, password_hash, business_name, business_address, verification_document)
+         VALUES ('admin', 'System Admin', 'admin@gmail.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001')
+         ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role = 'admin'`,
+        [defaultAdminHash]
+      );
+
+      await p.query(
+        `INSERT INTO users (role, name, email, phone, password_hash, business_name, business_address, verification_document)
+         VALUES ('admin', 'Pharmacy Admin', 'admin@pharmacy.com', '9999999998', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-002')
+         ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role = 'admin'`,
+        [defaultAdminHash]
+      );
+
+      await p.query(
+        `INSERT INTO users (role, name, email, phone, password_hash)
+         VALUES ('customer', 'Demo Customer', 'customer@pharmacy.com', '9876543210', ?)
+         ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)`,
+        [defaultCustomerHash]
+      );
+
+      await p.query(
+        `INSERT INTO users (role, name, email, phone, password_hash)
+         VALUES ('customer', 'John Doe', 'john.doe@example.com', '9811223344', ?)
+         ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)`,
+        [defaultCustomerHash]
+      );
+
+      await p.query(
+        `INSERT INTO users (role, name, email, phone, password_hash)
+         VALUES ('customer', 'Priya Patel', 'priya.patel@example.com', '9822334455', ?)
+         ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)`,
+        [defaultCustomerHash]
+      );
 
       // Seed medicines if empty
       const [medsRows] = await p.query("SELECT COUNT(*) AS count FROM medicines");
