@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -6,41 +6,41 @@ const GOOGLE_CLIENT_ID =
 
 export function useGoogleAuth({ onSuccess, onError }) {
   const initialized = useRef(false);
+  const callbackRef = useRef(null);
 
-  // Helper to remove any open Google Sign-In overlay modal
-  const closeGoogleOverlay = () => {
-    const overlay = document.getElementById("g-signin-overlay");
-    if (overlay) overlay.remove();
-  };
+  // Keep callbackRef in sync so the stable initialize callback can call latest onSuccess/onError
+  useEffect(() => {
+    callbackRef.current = { onSuccess, onError };
+  }, [onSuccess, onError]);
+
+  // Stable callback passed to Google — never changes reference
+  const stableCallback = useCallback((response) => {
+    if (response?.credential) {
+      callbackRef.current?.onSuccess(response.credential);
+    } else {
+      callbackRef.current?.onError?.("Google sign-in failed. Please try again.");
+    }
+  }, []);
 
   useEffect(() => {
     const init = () => {
-      if (initialized.current || window.__pharmaCareGoogleAuthInitialized) return;
+      if (initialized.current) return;
       if (!window.google?.accounts?.id) return;
 
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
-        callback: (response) => {
-          closeGoogleOverlay();
-          if (response?.credential) {
-            onSuccess(response.credential);
-          } else {
-            onError?.("Google sign-in failed. Please try again.");
-          }
-        },
+        callback: stableCallback,
         auto_select: false,
         cancel_on_tap_outside: true,
+        use_fedcm_for_prompt: false,
       });
 
       initialized.current = true;
-      window.__pharmaCareGoogleAuthInitialized = true;
     };
 
-    // GIS script may already be loaded (async defer)
     if (window.google?.accounts?.id) {
       init();
     } else {
-      // Poll until script loads (max ~5s)
       const interval = setInterval(() => {
         if (window.google?.accounts?.id) {
           init();
@@ -49,57 +49,34 @@ export function useGoogleAuth({ onSuccess, onError }) {
       }, 100);
       return () => clearInterval(interval);
     }
-  }, [onSuccess, onError]);
+  }, [stableCallback]);
 
-  // Secure postMessage communication between popup windows and parent window
-  useEffect(() => {
-    const handlePopupMessage = (event) => {
-      // Strict origin check to prevent cross-site request forgery
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data?.type === "GOOGLE_AUTH_SUCCESS" && event.data?.credential) {
-        closeGoogleOverlay();
-        onSuccess(event.data.credential);
-      }
-    };
-
-    window.addEventListener("message", handlePopupMessage);
-    return () => window.removeEventListener("message", handlePopupMessage);
-  }, [onSuccess]);
-
-  const triggerGoogleSignIn = () => {
-    closeGoogleOverlay();
-
+  const triggerGoogleSignIn = useCallback(() => {
     if (!window.google?.accounts?.id) {
-      onError?.("Google Sign-In is not available yet. Please wait a moment.");
+      callbackRef.current?.onError?.("Google Sign-In is not available yet. Please wait a moment.");
       return;
     }
 
-    // Re-initialize to ensure the callback is fresh before prompting
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: (response) => {
-        closeGoogleOverlay();
-        if (response?.credential) {
-          onSuccess(response.credential);
-        } else {
-          onError?.("Google sign-in failed. Please try again.");
-        }
-      },
-      auto_select: false,
-      cancel_on_tap_outside: true,
-      use_fedcm_for_prompt: false,
-    });
+    // Make sure initialized before prompting
+    if (!initialized.current) {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: stableCallback,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        use_fedcm_for_prompt: false,
+      });
+      initialized.current = true;
+    }
 
     window.google.accounts.id.prompt((notification) => {
       if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        // One Tap blocked — show a simple message instead of broken renderButton popup
-        onError?.(
-          "Google One Tap was blocked by your browser. Please allow pop-ups or try a different browser."
+        callbackRef.current?.onError?.(
+          "Google One Tap was blocked by your browser. Try disabling browser extensions or use Chrome without ad-blockers."
         );
       }
     });
-  };
+  }, [stableCallback]);
 
   return { triggerGoogleSignIn };
 }
