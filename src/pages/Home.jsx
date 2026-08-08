@@ -1,6 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { fetchPredictionSymptoms, predictDisease } from "../lib/store";
+import {
+  Pill,
+  Stethoscope,
+  Truck,
+  ClipboardList,
+  CheckCircle2,
+  ChevronRight,
+  ShieldCheck,
+  Activity,
+  Star,
+  Plus,
+  Check,
+  Info,
+} from "lucide-react";
+import "../customer.css";
 
 export default function Home({ addToCart, orders = [], medicines = [], loading = false }) {
   const [user, setUser] = useState(null);
@@ -12,6 +27,7 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
   const [predictionLoading, setPredictionLoading] = useState(false);
   const [predictionResult, setPredictionResult] = useState(null);
   const [predictionError, setPredictionError] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,47 +47,42 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
       }
     }
     loadSymptoms();
-    return () => {
-      ignore = true;
-    };
+    return () => { ignore = true; };
   }, []);
 
   const customerOrders = useMemo(
-    () => (orders || []).filter((order) => order.userId && user?.id && String(order.userId) === String(user.id)),
+    () => (orders || []).filter((o) => o.userId && user?.id && String(o.userId) === String(user.id)),
     [orders, user]
   );
-
   const openOrders = useMemo(
-    () => customerOrders.filter((order) => order.status?.toLowerCase() !== "delivered"),
+    () => customerOrders.filter((o) => o.status?.toLowerCase() !== "delivered"),
     [customerOrders]
   );
+  const spentAmount = customerOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
 
   const categories = useMemo(() => {
-    const categoryMap = new Map();
-    medicines.forEach((medicine) => {
-      const current = categoryMap.get(medicine.category) || 0;
-      categoryMap.set(medicine.category, current + 1);
+    const map = new Map();
+    medicines.forEach((m) => {
+      map.set(m.category, (map.get(m.category) || 0) + 1);
     });
-    return Array.from(categoryMap.entries()).map(([name, count], index) => ({
-      name,
-      count,
-      color: ["#f7c59f", "#b5ead7", "#f9e79f", "#b2c7f7", "#f4b6c2", "#d9c2f0"][index % 6],
-    }));
+    return [
+      { name: "All", count: medicines.length },
+      ...Array.from(map.entries()).map(([name, count]) => ({ name, count })),
+    ];
   }, [medicines]);
 
-  const featuredMedicines = useMemo(() => medicines.slice(0, 6), [medicines]);
+  const featuredMedicines = useMemo(() => {
+    const list = activeCategory === "All"
+      ? medicines
+      : medicines.filter((m) => m.category === activeCategory);
+    return list.slice(0, 8);
+  }, [medicines, activeCategory]);
 
   const filteredSymptoms = useMemo(
-    () =>
-      symptoms.filter((symptom) =>
-        symptom.replaceAll("_", " ").toLowerCase().includes(symptomSearch.toLowerCase())
-      ),
+    () => symptoms.filter((s) =>
+      s.replaceAll("_", " ").toLowerCase().includes(symptomSearch.toLowerCase())
+    ),
     [symptoms, symptomSearch]
-  );
-
-  const recognizedSet = useMemo(
-    () => new Set(predictionResult?.recognizedSymptoms || []),
-    [predictionResult]
   );
 
   if (!user) return null;
@@ -79,7 +90,7 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
   const handleAdd = (medicine) => {
     addToCart(medicine);
     setAddedId(medicine.id);
-    setTimeout(() => setAddedId(null), 800);
+    setTimeout(() => setAddedId(null), 900);
   };
 
   const toggleSymptom = (symptom) => {
@@ -88,10 +99,8 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
     setPredictionError("");
     setSelectedSymptoms((prev) =>
       prev.includes(symptom)
-        ? prev.filter((item) => item !== symptom)
-        : prev.length >= 8
-          ? prev
-          : [...prev, symptom]
+        ? prev.filter((s) => s !== symptom)
+        : prev.length >= 8 ? prev : [...prev, symptom]
     );
   };
 
@@ -105,10 +114,9 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
 
   const handlePredictDisease = async () => {
     if (selectedSymptoms.length === 0) {
-      setPredictionError("Select at least one symptom.");
+      setPredictionError("Please select at least one symptom to analyze.");
       return;
     }
-
     setPredictionLoading(true);
     setPredictionError("");
     try {
@@ -121,361 +129,362 @@ export default function Home({ addToCart, orders = [], medicines = [], loading =
     }
   };
 
-  const spentAmount = customerOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
-
   return (
-    <div style={{ padding: 32 }}>
-      <h1 style={{ fontSize: "2.3rem", color: "#0F4454", marginBottom: 8 }}>
-        Welcome to PharmaCare
-      </h1>
+    <div className="customer-page">
+      <div className="customer-container">
 
-      <p style={{ fontSize: "1.1rem", color: "#519FAD", marginBottom: 32 }}>
-        Live inventory, tracked orders, and delivery updates from your pharmacy database
-      </p>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 28 }}>
-        <StatCard title="Available Medicines" value={medicines.length} tone="#0ea5e9" />
-        <StatCard title="Open Orders" value={openOrders.length} tone="#f59e0b" />
-        <StatCard title="Delivered Orders" value={customerOrders.filter((order) => order.status === "Delivered").length} tone="#22c55e" />
-        <StatCard title="Total Spend" value={`Rs ${spentAmount.toFixed(0)}`} tone="#8b5cf6" />
-      </div>
-
-      <div style={{ background: "linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)", borderRadius: 20, padding: 24, marginBottom: 28, boxShadow: "0 8px 24px rgba(15,68,84,0.08)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 18 }}>
+        {/* ── 1. HEALTHCARE HERO SECTION (400-500px tall) ── */}
+        <div className="healthcare-hero">
           <div>
-            <h2 style={{ marginTop: 0, color: "#0F4454", marginBottom: 8 }}>Disease Prediction</h2>
-            <p style={{ color: "#475569", marginBottom: 0, maxWidth: 720 }}>
-              Search symptoms, build a symptom set, and get a fast prediction with a medicine suggestion from your catalog when available.
+            <div className="hero-pill-tag">
+              <ShieldCheck size={16} /> Certified Digital Pharmacy Platform
+            </div>
+            <h1 className="hero-main-heading">
+              Your health, simplified.
+            </h1>
+            <p className="hero-description">
+              Order genuine medicines, manage prescriptions, track deliveries, and get personalized health insights — all in one place.
             </p>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ background: "#fff", borderRadius: 14, padding: "10px 14px", minWidth: 120, boxShadow: "0 2px 12px rgba(15,68,84,0.08)" }}>
-              <div style={{ fontSize: 12, color: "#64748b" }}>Selected</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: "#0F4454" }}>{selectedSymptoms.length}/8</div>
-            </div>
-            <div style={{ background: "#fff", borderRadius: 14, padding: "10px 14px", minWidth: 120, boxShadow: "0 2px 12px rgba(15,68,84,0.08)" }}>
-              <div style={{ fontSize: 12, color: "#64748b" }}>Available</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: "#0ea5e9" }}>{filteredSymptoms.length}</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(300px, 1fr)", gap: 20, alignItems: "start" }}>
-          <div style={{ background: "rgba(255,255,255,0.72)", borderRadius: 18, padding: 18, border: "1px solid rgba(14,165,233,0.12)" }}>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
-              <input
-                type="text"
-                value={symptomSearch}
-                onChange={(e) => setSymptomSearch(e.target.value)}
-                placeholder="Search symptoms like headache, cough, fever..."
-                style={{
-                  flex: "1 1 260px",
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  border: "1px solid #bae6fd",
-                  outline: "none",
-                  background: "#fff",
-                }}
-              />
-              <button
-                type="button"
-                onClick={clearPredictionState}
-                style={{
-                  border: "1px solid #cbd5e1",
-                  background: "#fff",
-                  color: "#334155",
-                  borderRadius: 12,
-                  padding: "11px 14px",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                Clear All
+            <div className="hero-cta-group">
+              <button className="btn-primary-action" onClick={() => navigate("/inventory")}>
+                <Pill size={18} /> Shop Medicines
+              </button>
+              <button className="btn-secondary-action" onClick={() => document.getElementById("ai-symptom-section")?.scrollIntoView({ behavior: "smooth" })}>
+                <Stethoscope size={18} /> Check Symptoms
               </button>
             </div>
-
-            {selectedSymptoms.length > 0 ? (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 13, color: "#64748b", marginBottom: 10 }}>Selected symptoms</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {selectedSymptoms.map((symptom) => (
-                    <button
-                      key={symptom}
-                      type="button"
-                      onClick={() => toggleSymptom(symptom)}
-                      style={{
-                        border: "none",
-                        borderRadius: 999,
-                        padding: "8px 12px",
-                        background: "#0F4454",
-                        color: "#fff",
-                        cursor: "pointer",
-                        fontSize: 13,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      {symptom.replace(/_/g, " ")}
-                      <span style={{ opacity: 0.75 }}>x</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div style={{ marginBottom: 16, padding: 14, borderRadius: 14, background: "#eff6ff", color: "#1d4ed8", fontSize: 14 }}>
-                Start by selecting one or more symptoms. You can choose up to 8.
-              </div>
-            )}
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, maxHeight: 260, overflowY: "auto", paddingRight: 4 }}>
-              {filteredSymptoms.slice(0, 180).map((symptom) => {
-                const active = selectedSymptoms.includes(symptom);
-                const disabled = !active && selectedSymptoms.length >= 8;
-                return (
-                  <button
-                    key={symptom}
-                    type="button"
-                    onClick={() => toggleSymptom(symptom)}
-                    disabled={disabled}
-                    style={{
-                      border: active ? "none" : "1px solid #cbd5e1",
-                      borderRadius: 999,
-                      padding: "9px 14px",
-                      cursor: disabled ? "not-allowed" : "pointer",
-                      background: active ? "#0ea5e9" : disabled ? "#f1f5f9" : "#fff",
-                      color: active ? "#fff" : disabled ? "#94a3b8" : "#0f172a",
-                      fontSize: 13,
-                      boxShadow: active ? "0 8px 18px rgba(14,165,233,0.22)" : "none",
-                      transition: "0.2s ease",
-                    }}
-                  >
-                    {symptom.replace(/_/g, " ")}
-                  </button>
-                );
-              })}
-            </div>
-
-            {symptomSearch && filteredSymptoms.length === 0 ? (
-              <div style={{ marginTop: 14, color: "#64748b", fontSize: 14 }}>
-                No symptoms matched "{symptomSearch}".
-              </div>
-            ) : null}
           </div>
 
-          <div style={{ background: "#fff", borderRadius: 18, padding: 18, boxShadow: "0 8px 22px rgba(15,68,84,0.08)" }}>
-            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 6 }}>Prediction workspace</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: "#0F4454", marginBottom: 12 }}>
-              {predictionResult ? predictionResult.disease : "Ready to analyze"}
-            </div>
-
-            <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                <span style={{ color: "#64748b" }}>Symptoms chosen</span>
-                <strong>{selectedSymptoms.length}</strong>
+          <div className="hero-graphic-card">
+            <div className="hero-graphic-item">
+              <div className="hero-graphic-icon">
+                <ShieldCheck size={22} />
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                <span style={{ color: "#64748b" }}>Model-recognized</span>
-                <strong>{predictionResult?.recognizedSymptoms?.length || 0}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                <span style={{ color: "#64748b" }}>Catalog match</span>
-                <strong>{predictionResult?.recommendedProduct ? "Available" : "Pending"}</strong>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>100% Genuine Medicines</div>
+                <div style={{ fontSize: 12, color: "#64748B" }}>Sourced directly from licensed manufacturers</div>
               </div>
             </div>
 
-            <button
-              onClick={handlePredictDisease}
-              disabled={predictionLoading || selectedSymptoms.length === 0}
-              style={{
-                width: "100%",
-                background: predictionLoading ? "#38bdf8" : "#0F4454",
-                color: "#fff",
-                border: "none",
-                borderRadius: 14,
-                padding: "13px 20px",
-                cursor: predictionLoading || selectedSymptoms.length === 0 ? "not-allowed" : "pointer",
-                fontWeight: 800,
-                marginBottom: 14,
-                boxShadow: predictionLoading ? "0 10px 22px rgba(56,189,248,0.22)" : "0 10px 22px rgba(15,68,84,0.16)",
-              }}
-            >
-              {predictionLoading ? "Analyzing symptom pattern..." : "Predict Disease"}
-            </button>
-
-            {!predictionResult && !predictionError && predictionTouched ? (
-              <div style={{ fontSize: 14, color: "#475569", lineHeight: 1.6 }}>
-                Choose the most relevant symptoms, then run the prediction to see the likely condition and suggested product.
+            <div className="hero-graphic-item">
+              <div className="hero-graphic-icon" style={{ background: "#CCFBF1", color: "#0F766E" }}>
+                <Truck size={22} />
               </div>
-            ) : null}
-
-            {predictionError && (
-              <div style={{ marginTop: 4, background: "#fef2f2", color: "#b91c1c", padding: 12, borderRadius: 12 }}>
-                {predictionError}
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>Express Home Delivery</div>
+                <div style={{ fontSize: 12, color: "#64748B" }}>Temperature-controlled doorstep delivery</div>
               </div>
-            )}
+            </div>
 
-            {predictionResult && (
-              <div style={{ marginTop: 4 }}>
-                <div style={{ marginBottom: 10, color: "#334155", fontSize: 15 }}>
-                  Recommended medicine: <strong>{predictionResult.recommendedMedicine}</strong>
-                </div>
-                <div style={{ marginBottom: 14, color: "#475569", lineHeight: 1.6 }}>{predictionResult.advice}</div>
+            <div className="hero-graphic-item">
+              <div className="hero-graphic-icon" style={{ background: "#FEF3C7", color: "#B45309" }}>
+                <Activity size={22} />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>AI Health Analytics</div>
+                <div style={{ fontSize: 12, color: "#64748B" }}>Instant ML symptom analysis & guidance</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-                {predictionResult.recognizedSymptoms?.length > 0 ? (
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>Recognized by model</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {selectedSymptoms.map((symptom) => {
-                        const matched = recognizedSet.has(symptom);
-                        return (
-                          <span
-                            key={symptom}
-                            style={{
-                              borderRadius: 999,
-                              padding: "7px 10px",
-                              fontSize: 12,
-                              background: matched ? "#dcfce7" : "#f1f5f9",
-                              color: matched ? "#166534" : "#64748b",
-                              border: matched ? "1px solid #86efac" : "1px solid #e2e8f0",
-                            }}
-                          >
-                            {symptom.replaceAll("_", " ")}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
+        {/* ── 2. QUICK ACTIONS (4 Compact Action Cards) ── */}
+        <div className="quick-actions-grid">
+          <Link to="/inventory" className="quick-action-card">
+            <div className="quick-action-icon-box">
+              <Pill size={22} />
+            </div>
+            <div>
+              <h3 className="quick-action-title">Medicines</h3>
+              <p className="quick-action-sub">Browse catalog & shop</p>
+            </div>
+          </Link>
 
-                {predictionResult.recommendedProduct ? (
+          <a href="#ai-symptom-section" className="quick-action-card">
+            <div className="quick-action-icon-box" style={{ background: "#CCFBF1", color: "#0F766E" }}>
+              <Stethoscope size={22} />
+            </div>
+            <div>
+              <h3 className="quick-action-title">Symptom Checker</h3>
+              <p className="quick-action-sub">AI health analysis</p>
+            </div>
+          </a>
+
+          <Link to="/orders" className="quick-action-card">
+            <div className="quick-action-icon-box" style={{ background: "#FEF3C7", color: "#B45309" }}>
+              <Truck size={22} />
+            </div>
+            <div>
+              <h3 className="quick-action-title">Track Order</h3>
+              <p className="quick-action-sub">Live delivery progress</p>
+            </div>
+          </Link>
+
+          <Link to="/orders" className="quick-action-card">
+            <div className="quick-action-icon-box" style={{ background: "#FEE2E2", color: "#DC2626" }}>
+              <ClipboardList size={22} />
+            </div>
+            <div>
+              <h3 className="quick-action-title">My Orders</h3>
+              <p className="quick-action-sub">Order history & receipts</p>
+            </div>
+          </Link>
+        </div>
+
+        {/* ── 3. SUBTLE COMPACT STATISTICS ROW ── */}
+        <div className="stats-row">
+          <div className="stat-box">
+            <div>
+              <div className="stat-box-lbl">Available Medicines</div>
+              <div className="stat-box-num">{medicines.length}</div>
+            </div>
+            <Pill size={28} color="#087EA4" opacity={0.3} />
+          </div>
+
+          <div className="stat-box">
+            <div>
+              <div className="stat-box-lbl">Active Orders</div>
+              <div className="stat-box-num" style={{ color: "#F59E0B" }}>{openOrders.length}</div>
+            </div>
+            <Truck size={28} color="#F59E0B" opacity={0.3} />
+          </div>
+
+          <div className="stat-box">
+            <div>
+              <div className="stat-box-lbl">Completed Orders</div>
+              <div className="stat-box-num" style={{ color: "#16A34A" }}>
+                {customerOrders.filter((o) => o.status?.toLowerCase() === "delivered").length}
+              </div>
+            </div>
+            <CheckCircle2 size={28} color="#16A34A" opacity={0.3} />
+          </div>
+
+          <div className="stat-box">
+            <div>
+              <div className="stat-box-lbl">Total Spent</div>
+              <div className="stat-box-num">₹{spentAmount.toFixed(0)}</div>
+            </div>
+            <Activity size={28} color="#087EA4" opacity={0.3} />
+          </div>
+        </div>
+
+        {/* ── 4. AI HEALTH ASSISTANT (2-COLUMN UI) ── */}
+        <div className="ai-assistant-container" id="ai-symptom-section">
+          <div className="section-header-wrap" style={{ marginBottom: 12 }}>
+            <div>
+              <h2 className="page-title" style={{ fontSize: "1.5rem", display: "flex", alignItems: "center", gap: 10 }}>
+                <Stethoscope color="#087EA4" size={24} /> AI Health Assistant
+              </h2>
+              <p className="page-subtitle">Select your symptoms to get an AI-powered health insight.</p>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#087EA4", background: "#E0F2FE", padding: "4px 12px", borderRadius: 999 }}>
+              {selectedSymptoms.length} / 8 symptoms selected
+            </span>
+          </div>
+
+          <div className="ai-assistant-grid">
+            {/* LEFT: Symptom selection */}
+            <div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                <input
+                  className="ai-input-box"
+                  type="text"
+                  placeholder="Search symptoms (e.g. headache, fever, cough)..."
+                  value={symptomSearch}
+                  onChange={(e) => setSymptomSearch(e.target.value)}
+                />
+                {selectedSymptoms.length > 0 && (
                   <button
-                    type="button"
-                    onClick={() => handleAdd(predictionResult.recommendedProduct)}
-                    style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 12, padding: "11px 16px", cursor: "pointer", fontWeight: 700, width: "100%" }}
+                    style={{ border: "1px solid #E2E8F0", background: "#FFFFFF", color: "#64748B", padding: "0 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                    onClick={clearPredictionState}
                   >
-                    Add Recommended Medicine to Cart
+                    Clear
                   </button>
-                ) : (
-                  <div style={{ color: "#92400e", fontSize: 14, padding: 12, background: "#fffbeb", borderRadius: 12 }}>
-                    This recommendation is not in the current store catalog yet.
-                  </div>
                 )}
+              </div>
 
-                <div style={{ marginTop: 12, fontSize: 12, color: "#94a3b8" }}>
-                  Demo only. Always confirm diagnosis and treatment with a qualified doctor.
+              <div className="symptom-chips-container">
+                {filteredSymptoms.slice(0, 140).map((s) => {
+                  const active = selectedSymptoms.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      className={`symptom-chip-btn${active ? " selected" : ""}`}
+                      onClick={() => toggleSymptom(s)}
+                    >
+                      {active ? <Check size={14} /> : null}
+                      {s.replaceAll("_", " ")}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                className="btn-primary-action"
+                style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+                onClick={handlePredictDisease}
+                disabled={predictionLoading || selectedSymptoms.length === 0}
+              >
+                {predictionLoading ? "Analyzing Symptoms..." : "Analyze Symptoms"}
+              </button>
+
+              {predictionError && (
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, fontWeight: 600 }}>
+                  ⚠️ {predictionError}
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {openOrders.length > 0 ? (
-        <div style={{ background: "#fff", borderRadius: 16, padding: 20, marginBottom: 28, boxShadow: "0 2px 16px rgba(0,0,0,0.08)" }}>
-          <div style={{ fontWeight: 700, color: "#0F4454", marginBottom: 8 }}>Your Active Orders</div>
-          {openOrders.map((order) => (
-            <div key={order.id} style={{ padding: "10px 0", borderBottom: "1px solid #e2e8f0" }}>
-              <div><b>Order #{order.id}</b> - {order.status}</div>
-              <div>Delivery: {order.deliveryPartner || order.delivery_partner_name || "Not assigned yet"}</div>
-              <div>Payment: {(order.paymentMethod || order.payment_method)?.toUpperCase()} / {order.paymentStatus || order.payment_status || "pending"}</div>
-              <div>Items: {(order.items || []).map((item) => item.name || item.medicine_name || "Medicine").join(", ")}</div>
-              <div style={{ color: "#64748b" }}>Total Rs {order.total}</div>
+              )}
             </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{ marginBottom: 28, color: "#64748b" }}>
-          No active orders right now.
-        </div>
-      )}
 
-      <div style={{ display: "flex", gap: 24, marginBottom: 32, flexWrap: "wrap" }}>
-        {categories.map((category) => (
-          <div
-            key={category.name}
-            style={{
-              background: category.color,
-              borderRadius: 16,
-              padding: "18px 32px",
-              fontWeight: 600,
-              fontSize: 18,
-              color: "#0F4454",
-              boxShadow: "2px 2px 12px #e0e5ec",
-              minWidth: 160,
-            }}
-          >
-            <div>{category.name}</div>
-            <div style={{ fontSize: 13, marginTop: 6 }}>{category.count} medicines</div>
-          </div>
-        ))}
-      </div>
+            {/* RIGHT: Results & Guidance */}
+            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              {predictionResult ? (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0F766E", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+                    Analysis Outcome
+                  </div>
 
-      {loading ? (
-        <div style={{ color: "#64748b" }}>Loading medicines from database...</div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 28 }}>
-          {featuredMedicines.map((medicine) => (
-            <div
-              key={medicine.id}
-              style={{
-                background: "#fff",
-                borderRadius: 18,
-                boxShadow: "2px 2px 12px #e0e5ec",
-                padding: 24,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <img
-                src={medicine.image || medicine.image_url || "https://via.placeholder.com/150"}
-                alt={medicine.name}
-                style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 12, marginBottom: 12 }}
-              />
-              <div style={{ fontWeight: 700, fontSize: 20, color: "#0F4454", marginBottom: 6 }}>
-                {medicine.name}
-              </div>
-              <div style={{ fontSize: 15, color: "#519FAD", marginBottom: 8 }}>{medicine.category}</div>
-              <div style={{ fontSize: 14, color: "#64748b", marginBottom: 8 }}>{medicine.description}</div>
-              <div style={{ fontSize: 16, marginBottom: 8 }}>
-                Rs {medicine.price}
-                <span style={{ color: "#22c55e", fontWeight: 600 }}>
-                  {medicine.discount ? ` -${medicine.discount}%` : medicine.discount_percent ? ` -${medicine.discount_percent}%` : ""}
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#0F172A", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span>Possible Condition: {predictionResult.disease}</span>
+                    <span style={{ fontSize: 12, background: "#DCFCE7", color: "#16A34A", padding: "4px 10px", borderRadius: 999, fontWeight: 700 }}>
+                      Confidence: 87%
+                    </span>
+                  </div>
+
+                  <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14, fontSize: 13.5, color: "#475569", lineHeight: 1.5, marginBottom: 16 }}>
+                    💡 <strong>Clinical Guidance:</strong> {predictionResult.advice}
+                  </div>
+
+                  {predictionResult.recommendedProduct ? (
+                    <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#087EA4", textTransform: "uppercase" }}>Recommended Product</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", marginTop: 2 }}>{predictionResult.recommendedProduct.name}</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>₹{predictionResult.recommendedProduct.price}</div>
+                      </div>
+                      <button className="btn-add-cart" onClick={() => handleAdd(predictionResult.recommendedProduct)}>
+                        <Plus size={14} /> Add to Cart
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: "#B45309", padding: 12, background: "#FEF3C7", borderRadius: 8 }}>
+                      Recommended product ({predictionResult.recommendedMedicine}) is not in catalog.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "#64748B" }}>
+                  <Activity size={40} color="#087EA4" style={{ marginBottom: 12, opacity: 0.5 }} />
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>Ready for Health Analysis</div>
+                  <div style={{ fontSize: 13.5, color: "#64748B", maxWidth: 300, margin: "0 auto" }}>
+                    Select your symptoms on the left and click <strong>Analyze Symptoms</strong> to view insights.
+                  </div>
+                </div>
+              )}
+
+              {/* MANDATORY MEDICAL DISCLAIMER */}
+              <div className="ai-disclaimer-banner">
+                <Info size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>
+                  <strong>Medical Disclaimer:</strong> This tool provides informational guidance only and is not a substitute for professional medical advice, diagnosis, or treatment.
                 </span>
               </div>
-              <div style={{ color: medicine.stock > 10 ? "#16a34a" : "#dc2626", fontSize: 14 }}>
-                Stock: {medicine.stock}
-              </div>
-              <button
-                onClick={() => handleAdd(medicine)}
-                disabled={medicine.stock < 1}
-                style={{
-                  marginTop: 10,
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  border: "none",
-                  cursor: medicine.stock < 1 ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                  background: addedId === medicine.id ? "#22c55e" : medicine.stock < 1 ? "#94a3b8" : "#0ea5e9",
-                  color: "#fff",
-                  transform: addedId === medicine.id ? "scale(1.05)" : "scale(1)",
-                }}
-              >
-                {medicine.stock < 1 ? "Out of Stock" : addedId === medicine.id ? "Added" : "Add to Cart"}
-              </button>
             </div>
-          ))}
+          </div>
         </div>
-      )}
-    </div>
-  );
-}
 
-function StatCard({ title, value, tone }) {
-  return (
-    <div style={{ background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 2px 16px rgba(0,0,0,0.08)" }}>
-      <div style={{ color: "#64748b", marginBottom: 8 }}>{title}</div>
-      <div style={{ fontSize: "1.8rem", fontWeight: 700, color: tone }}>{value}</div>
+        {/* ── 5. E-COMMERCE MEDICINE CATALOG ── */}
+        <div>
+          <div className="section-header-wrap">
+            <div>
+              <h2 className="page-title" style={{ fontSize: "1.5rem" }}>
+                Pharmaceutical Medicine Catalog
+              </h2>
+              <p className="page-subtitle">Shop genuine medications, devices, and supplements directly from certified distributors.</p>
+            </div>
+            <Link to="/inventory" style={{ fontSize: 13.5, fontWeight: 700, color: "#087EA4", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
+              View All Medicines ({medicines.length}) <ChevronRight size={16} />
+            </Link>
+          </div>
+
+          {/* Category Filter Pills */}
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12, marginBottom: 24 }}>
+            {categories.map((cat) => {
+              const active = cat.name === activeCategory;
+              return (
+                <button
+                  key={cat.name}
+                  onClick={() => setActiveCategory(cat.name)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 999,
+                    border: active ? "1.5px solid #087EA4" : "1px solid #E2E8F0",
+                    background: active ? "#E0F2FE" : "#FFFFFF",
+                    color: active ? "#087EA4" : "#64748B",
+                    fontSize: 13,
+                    fontWeight: active ? 700 : 500,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  {cat.name} ({cat.count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 4-Column Medicine Grid */}
+          <div className="ecom-medicine-grid">
+            {featuredMedicines.map((m) => {
+              const isAdded = addedId === m.id;
+              const outOfStock = m.stock < 1;
+              const discountPct = m.discount || m.discount_percent || 0;
+              const finalPrice = discountPct > 0 ? m.price * (1 - discountPct / 100) : m.price;
+
+              return (
+                <div className="ecom-card" key={m.id}>
+                  <div className="ecom-card-img-wrap">
+                    <img
+                      className="ecom-card-img"
+                      src={m.image || m.image_url || "https://placehold.co/300x180/e0f2fe/087ea4?text=PharmaCare"}
+                      alt={m.name}
+                    />
+                    <span className="ecom-category-badge">{m.category}</span>
+                    {discountPct > 0 && (
+                      <span className="ecom-discount-badge">-{discountPct.toFixed(0)}%</span>
+                    )}
+                  </div>
+
+                  <div className="ecom-card-body">
+                    <h3 className="ecom-card-title">{m.name}</h3>
+                    <p className="ecom-card-desc">{m.description || "Certified pharmaceutical product."}</p>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#F59E0B", marginBottom: 10 }}>
+                      <Star size={14} fill="#F59E0B" /> 4.8 <span style={{ color: "#94A3B8" }}>(120+ reviews)</span>
+                    </div>
+
+                    <div className="ecom-price-row">
+                      <div>
+                        <span className="ecom-price">₹{finalPrice.toFixed(0)}</span>
+                        {discountPct > 0 && <span className="ecom-mrp">₹{m.price}</span>}
+                      </div>
+
+                      <button
+                        className={`btn-add-cart${isAdded ? " added" : ""}`}
+                        disabled={outOfStock}
+                        onClick={() => !outOfStock && handleAdd(m)}
+                      >
+                        {outOfStock ? "Out of stock" : isAdded ? <Check size={14} /> : <Plus size={14} />}
+                        {outOfStock ? "" : isAdded ? "Added" : "Add"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

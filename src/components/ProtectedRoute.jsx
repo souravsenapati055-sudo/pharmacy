@@ -1,7 +1,17 @@
 import { Navigate } from "react-router-dom";
 
 export default function ProtectedRoute({ user, children, requiredRole }) {
-  if (!user) return <Navigate to="/login" />;
-  if (requiredRole && user.role !== requiredRole) return <h2>Access Denied</h2>;
+  if (!user) {
+    if (requiredRole === "admin") {
+      return <Navigate to="/login/admin" replace />;
+    }
+    return <Navigate to="/login" replace />;
+  }
+
+  const isAdmin = user.role === "admin" || user.isAdmin === true;
+  if (requiredRole === "admin" && !isAdmin) {
+    return <Navigate to="/home" replace />;
+  }
+
   return children;
 }

@@ -243,7 +243,7 @@ export default function Restock({ medicines = [] }) {
               {recentOrders.map((order) => (
                 <div key={order.id} className="restock-order-row">
                   <span className="restock-order-id">#{order.id}</span>
-                  <span className="restock-order-vendor">{order.vendorName}</span>
+                  <span className="restock-order-vendor">{order.vendor_name}</span>
                   <span className="restock-order-total">Rs {Number(order.total).toFixed(0)}</span>
                 </div>
               ))}

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { useState, useEffect } from "react";
 
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import LoginModern from "./pages/LoginModern";
@@ -17,6 +18,10 @@ import DeliveryTeam from "./DeliveryTeam";
 import OrderFromSeller from "./components/OrderFromSeller";
 import Profile from "./pages/Profile";
 
+import AdminCustomers from "./pages/AdminCustomers";
+import AdminDeliveryManagement from "./pages/AdminDeliveryManagement";
+import DeliveryLogin from "./pages/DeliveryLogin";
+import DeliveryDashboard from "./pages/DeliveryDashboard";
 import Analytics from "./pages/Analytics";
 import Alerts from "./pages/Alerts";
 import AIInsights from "./pages/AIInsights";
@@ -29,6 +34,8 @@ import {
   fetchMedicines,
   fetchOrders,
 } from "./lib/store";
+
+import AdminLayout from "./components/AdminLayout";
 
 function AppContent() {
   const [user, setUser] = useState(() => {
@@ -138,11 +145,23 @@ function AppContent() {
 
   const location = useLocation();
 
-  // NAVBAR LOGIC - Hide navbar on landing, login, and signup pages
+  // NAVBAR LOGIC - Hide customer navbar on landing, login, signup, admin, and delivery pages
   const hideNavbar =
     location.pathname === "/" ||
     location.pathname.startsWith("/login") ||
-    location.pathname.startsWith("/signup");
+    location.pathname.startsWith("/signup") ||
+    location.pathname.startsWith("/admin") ||
+    location.pathname.startsWith("/delivery") ||
+    user?.role === "DELIVERY_BOY" ||
+    user?.role === "delivery";
+
+  const renderAdminView = (Component) => (
+    <ProtectedRoute user={user} requiredRole="admin">
+      <AdminLayout user={user} setUser={setUser}>
+        {Component}
+      </AdminLayout>
+    </ProtectedRoute>
+  );
 
   return (
     <>
@@ -152,13 +171,14 @@ function AppContent() {
 
       <Routes>
         {/* Authentication Routes */}
-        <Route path="/login" element={<Navigate to="/login/customer" replace />} />
+        <Route path="/login" element={<Navigate to="/login/admin" replace />} />
         <Route path="/login/:role" element={<LoginModern setUser={setUser} />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/signup/:role" element={<SignupModern setUser={setUser} />} />
         <Route path="/" element={<Landing medicines={medicines} />} />
 
         {/* Customer Routes */}
+        <Route path="/customer/dashboard" element={<Navigate to="/home" replace />} />
         <Route
           path="/home"
           element={
@@ -178,7 +198,7 @@ function AppContent() {
           path="/inventory"
           element={
             <ProtectedRoute user={user}>
-              <Inventory medicines={medicines} addToCart={addToCart} loading={dataLoading} />
+              <Inventory medicines={medicines} setMedicines={setMedicines} addToCart={addToCart} loading={dataLoading} />
             </ProtectedRoute>
           }
         />
@@ -225,117 +245,87 @@ function AppContent() {
         {/* Admin Dashboard Routes */}
         <Route
           path="/admin"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <Dashboard
-                setUser={setUser}
-                medicines={medicines}
-                setMedicines={setMedicines}
-                deliveryPeople={deliveryPeople}
-                setDeliveryPeople={setDeliveryPeople}
-                orders={orders}
-                setOrders={setOrders}
-              />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(
+            <Dashboard
+              setUser={setUser}
+              medicines={medicines}
+              setMedicines={setMedicines}
+              deliveryPeople={deliveryPeople}
+              setDeliveryPeople={setDeliveryPeople}
+              orders={orders}
+              setOrders={setOrders}
+            />
+          )}
+        />
+
+        {/* Admin Customers Route */}
+        <Route
+          path="/admin/customers"
+          element={renderAdminView(<AdminCustomers adminUser={user} />)}
         />
 
         {/* Admin Analytics Route */}
         <Route
           path="/admin/analytics"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <Analytics />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(<Analytics />)}
         />
 
         {/* Admin Alerts Route */}
         <Route
           path="/admin/alerts"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <Alerts />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(<Alerts />)}
         />
 
         {/* Admin AI Insights Route */}
         <Route
           path="/admin/ai-insights"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <AIInsights />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(<AIInsights />)}
         />
 
         {/* Admin Restock Route */}
         <Route
           path="/admin/restock"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <Restock medicines={medicines} />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(<Restock medicines={medicines} />)}
         />
 
         {/* Admin Bulk Discount Route */}
         <Route
           path="/admin/bulk-discount"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <BulkDiscount medicines={medicines} setMedicines={setMedicines} />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(<BulkDiscount medicines={medicines} setMedicines={setMedicines} />)}
         />
 
         {/* Admin Emergency Order Route */}
         <Route
           path="/admin/emergency-order"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <EmergencyOrder medicines={medicines} />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(<EmergencyOrder medicines={medicines} />)}
         />
 
         {/* Admin Generate Report Route */}
         <Route
           path="/admin/generate-report"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <GenerateReport />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(<GenerateReport />)}
         />
 
-        {/* Admin Delivery Team Route */}
-        <Route
-          path="/admin/delivery-team"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <DeliveryTeam
-                deliveryPeople={deliveryPeople}
-                setDeliveryPeople={setDeliveryPeople}
-              />
-            </ProtectedRoute>
-          }
-        />
+        {/* Delivery Partner Login & Dashboard Routes */}
+        <Route path="/login/delivery" element={<DeliveryLogin setUser={setUser} />} />
+        <Route path="/delivery/login" element={<DeliveryLogin setUser={setUser} />} />
+        <Route path="/delivery/dashboard" element={<DeliveryDashboard user={user} setUser={setUser} />} />
+
+        {/* Admin Delivery Management Route */}
+        <Route path="/admin/delivery" element={renderAdminView(<AdminDeliveryManagement />)} />
+        <Route path="/admin/delivery-team" element={renderAdminView(<AdminDeliveryManagement />)} />
 
         {/* Admin Procurement / Order from Seller Route */}
         <Route
           path="/admin/order-from-seller"
-          element={
-            <ProtectedRoute user={user} requiredRole="admin">
-              <OrderFromSeller medicines={medicines} />
-            </ProtectedRoute>
-          }
+          element={renderAdminView(<OrderFromSeller medicines={medicines} />)}
         />
 
         {/* Catch-all Route - Redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {user && !hideNavbar && <Footer />}
     </>
   );
 }

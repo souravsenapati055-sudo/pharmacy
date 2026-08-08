@@ -255,7 +255,7 @@ export default function EmergencyOrder({ medicines = [] }) {
               {recentOrders.map((order) => (
                 <div key={order.id} className="cart-item">
                   <div className="item-info">
-                    <h4>#{order.id} - {order.vendorName}</h4>
+                    <h4>#{order.id} - {order.vendor_name}</h4>
                     <p>{order.status}</p>
                   </div>
                   <div className="item-total">Rs {order.total.toFixed(0)}</div>

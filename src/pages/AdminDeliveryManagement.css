@@ -1,0 +1,234 @@
+.adm-delivery-container {
+  padding: 28px;
+  background-color: #f8fafc;
+  min-height: 100vh;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: #0f172a;
+}
+
+.adm-del-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.adm-del-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adm-del-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+.adm-del-btn-primary {
+  background: #087ea4;
+  color: #ffffff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(8, 126, 164, 0.2);
+  transition: all 0.2s ease;
+}
+
+.adm-del-btn-primary:hover {
+  background: #066989;
+  transform: translateY(-1px);
+}
+
+.adm-del-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.adm-del-stat-card {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.adm-del-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.adm-del-stat-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.adm-del-stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.adm-del-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.adm-del-toolbar {
+  padding: 18px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #ffffff;
+}
+
+.adm-del-tabs {
+  display: flex;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.adm-del-tab-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  color: #64748b;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adm-del-tab-btn.active {
+  background: #ffffff;
+  color: #087ea4;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.adm-del-table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.adm-del-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.adm-del-table th {
+  background: #f8fafc;
+  padding: 14px 18px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.adm-del-table td {
+  padding: 16px 18px;
+  font-size: 13.5px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.adm-del-table tr:hover {
+  background-color: #f8fafc;
+}
+
+.adm-del-id-badge {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-family: monospace;
+}
+
+.adm-del-online-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.adm-del-online-badge.online { background: #dcfce7; color: #15803d; }
+.adm-del-online-badge.offline { background: #f1f5f9; color: #64748b; }
+
+.adm-del-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.adm-del-status-placed { background: #f1f5f9; color: #475569; }
+.adm-del-status-assigned { background: #e0f2fe; color: #0369a1; }
+.adm-del-status-accepted { background: #e0e7ff; color: #3730a3; }
+.adm-del-status-pickedup { background: #fef3c7; color: #92400e; }
+.adm-del-status-outfordelivery { background: #ffedd5; color: #c2410c; }
+.adm-del-status-delivered { background: #dcfce7; color: #15803d; }
+
+.adm-del-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 16px;
+}
+
+.adm-del-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 28px;
+  width: 520px;
+  max-width: 95vw;
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.2);
+}

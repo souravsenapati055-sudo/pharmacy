@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(191) NOT NULL UNIQUE,
   phone VARCHAR(20) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  profile_photo VARCHAR(255) NULL,
   business_name VARCHAR(160) NULL,
   business_address VARCHAR(255) NULL,
   verification_document VARCHAR(255) NULL,
@@ -55,7 +56,7 @@ CREATE TABLE IF NOT EXISTS delivery_partners (
 
 CREATE TABLE IF NOT EXISTS vendor_partners (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  vendor_type ENUM('supplier', 'manufacturer', 'wholesaler', 'distributor') NOT NULL DEFAULT 'wholesaler',
+  vendor_type VARCHAR(40) NOT NULL DEFAULT 'wholesaler',
   name VARCHAR(160) NOT NULL,
   phone VARCHAR(20) NULL,
   location VARCHAR(255) NULL,
@@ -150,4 +151,25 @@ CREATE TABLE IF NOT EXISTS discount_campaigns (
   valid_until DATETIME NULL,
   promo_code VARCHAR(50) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS stock_transactions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  medicine_id INT NOT NULL,
+  type ENUM('SALE', 'STOCK_ADDED', 'STOCK_REMOVED', 'DAMAGED', 'EXPIRED', 'RETURNED', 'CORRECTION') NOT NULL,
+  quantity INT NOT NULL,
+  previous_stock INT NOT NULL,
+  new_stock INT NOT NULL,
+  reason VARCHAR(255) NULL,
+  order_id INT NULL,
+  customer_id INT NULL,
+  supplier_id INT NULL,
+  batch_number VARCHAR(100) NULL,
+  purchase_cost DECIMAL(10,2) NULL,
+  expiry_date DATE NULL,
+  admin_id INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_stock_trans_medicine
+    FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+    ON DELETE CASCADE
 );

@@ -1,65 +1,62 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "../Dashboard.css";
 import { updateUserProfile } from "../lib/store";
+import { User, Mail, Phone, Camera, Check, ShieldCheck, ArrowLeft, Save } from "lucide-react";
+import "../customer.css";
 
 export default function Profile({ user, setUser }) {
   const navigate = useNavigate();
-  const [adminName, setAdminName] = useState("");
-  const [profilePhoto, setProfilePhoto] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [savedMessage, setSavedMessage] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
   const [photoPreview, setPhotoPreview] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
+  const [isError, setIsError] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const currentUser = user || JSON.parse(localStorage.getItem("user") || "null");
     if (!currentUser) return;
-
-    setIsAdmin(currentUser?.isAdmin === true || currentUser?.role === "admin");
     setFullName(currentUser.name || "");
     setEmail(currentUser.email || "");
     setPhone(currentUser.phone || "");
     setProfilePhoto(currentUser.profilePhoto || "");
     setPhotoPreview(currentUser.profilePhoto || "");
-    setAdminName(currentUser.name ? currentUser.name.split(" ")[0] : "");
   }, [user]);
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (file.size > 5 * 1024 * 1024) {
-      setSavedMessage("File size should be less than 5MB.");
+      setSavedMessage("File must be under 5 MB.");
+      setIsError(true);
       return;
     }
-
     if (!file.type.startsWith("image/")) {
       setSavedMessage("Please upload an image file.");
+      setIsError(true);
       return;
     }
-
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64String = reader.result || "";
-      setProfilePhoto(base64String);
-      setPhotoPreview(base64String);
+      const b64 = reader.result || "";
+      setProfilePhoto(b64);
+      setPhotoPreview(b64);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSaveProfile = async () => {
+  const handleSave = async () => {
     const currentUser = user || JSON.parse(localStorage.getItem("user") || "null");
     if (!currentUser?.id) {
-      setSavedMessage("Please sign in again before saving your profile.");
+      setSavedMessage("Please sign in again before saving.");
+      setIsError(true);
       return;
     }
-
     setSaving(true);
     setSavedMessage("");
+    setIsError(false);
     try {
       const response = await updateUserProfile(currentUser.id, {
         name: fullName,
@@ -69,242 +66,137 @@ export default function Profile({ user, setUser }) {
       });
       localStorage.setItem("user", JSON.stringify(response.user));
       setUser?.(response.user);
-      setAdminName(response.user.name ? response.user.name.split(" ")[0] : "");
-      setSavedMessage("Profile saved successfully.");
+      setSavedMessage("Profile updated successfully ✓");
+      setIsError(false);
     } catch (error) {
       setSavedMessage(error.message);
+      setIsError(true);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleBack = () => {
-    navigate(-1);
-  };
-
   const displayPhoto = photoPreview || profilePhoto || "https://i.pravatar.cc/150?img=8";
+  const currentUser = user || JSON.parse(localStorage.getItem("user") || "null");
+  const isAdmin = currentUser?.isAdmin === true || currentUser?.role === "admin";
 
   return (
-    <div className="wrapper">
-      <div className="sidebar">
-        <div className="sidebar-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-          <div className="navbar-logo" style={{ marginBottom: "10px" }}>
-            <img
-              src={displayPhoto}
-              alt="Profile"
-              className="sidebar-logo-img"
-              style={{
-                width: "50px",
-                height: "50px",
-                borderRadius: "50%",
-                objectFit: "cover",
-                marginBottom: "10px",
-              }}
-            />
-          </div>
-          <h2 className="logo">Pharmacy</h2>
-          {adminName ? (
-            <p style={{ color: "#fff", marginTop: "10px", fontSize: "14px" }}>
-              Welcome, {adminName}!
-            </p>
-          ) : null}
-        </div>
-
-        <p className="section">PROFILE</p>
-        <button className="active">My Profile</button>
-        <button onClick={handleBack}>Back</button>
-      </div>
-
-      <div className="main">
-        <div className="topbar">
-          <h2>{isAdmin ? "Admin Profile" : "Customer Profile"}</h2>
-          <div className="user-info" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <img
-              src={displayPhoto}
-              alt="User Avatar"
-              className="topbar-avatar"
-              style={{
-                width: "40px",
-                height: "40px",
-                borderRadius: "50%",
-                objectFit: "cover",
-                border: "2px solid #0ea5e9",
-              }}
-            />
-            <span style={{ fontWeight: "500" }}>{adminName || (isAdmin ? "Admin" : "Customer")}</span>
+    <div className="customer-page">
+      <div className="customer-container" style={{ maxWidth: 720 }}>
+        
+        {/* Header */}
+        <div className="section-header-wrap" style={{ marginBottom: 28 }}>
+          <div>
+            <h1 className="page-title">Account Profile</h1>
+            <p className="page-subtitle">Manage your personal information, contact details, and account photo.</p>
           </div>
         </div>
 
-        <div
-          style={{
-            maxWidth: "600px",
-            margin: "30px auto",
-            background: "white",
-            padding: "30px",
-            borderRadius: "12px",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
-          }}
-        >
-          <h2 style={{ color: "#0F4454", marginBottom: "20px" }}>
-            {isAdmin ? "Admin Profile Information" : "Customer Profile Information"}
-          </h2>
-
-          {savedMessage ? (
+        {/* Profile Card */}
+        <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 16, padding: 36, boxShadow: "0 4px 12px rgba(15,23,42,0.05)" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 32 }}>
+            
+            {/* Avatar upload */}
             <div
-              style={{
-                background: "#dcfce7",
-                color: "#166534",
-                padding: "12px",
-                borderRadius: "8px",
-                marginBottom: "20px",
-                textAlign: "center",
-              }}
+              style={{ position: "relative", cursor: "pointer", marginBottom: 16 }}
+              onClick={() => document.getElementById("profilePhotoInput").click()}
+              title="Click to upload profile photo"
             >
-              {savedMessage}
-            </div>
-          ) : null}
-
-          <div style={{ textAlign: "center", marginBottom: "30px" }}>
-            <div style={{ position: "relative", display: "inline-block" }}>
               <img
                 src={displayPhoto}
-                alt="Profile"
-                style={{
-                  width: "120px",
-                  height: "120px",
-                  borderRadius: "50%",
-                  border: "3px solid #0ea5e9",
-                  objectFit: "cover",
-                  cursor: "pointer",
+                alt="Profile Avatar"
+                style={{ width: 104, height: 104, borderRadius: "50%", objectFit: "cover", border: "3px solid #087EA4", boxShadow: "0 8px 24px rgba(8,126,164,0.2)" }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = isAdmin ? "https://i.pravatar.cc/150?img=7" : "https://i.pravatar.cc/150?img=8";
                 }}
-                onClick={() => document.getElementById("photoUpload").click()}
               />
-              <button
-                onClick={() => document.getElementById("photoUpload").click()}
-                style={{
-                  position: "absolute",
-                  bottom: "5px",
-                  right: "5px",
-                  background: "#0ea5e9",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "50%",
-                  width: "32px",
-                  height: "32px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "16px",
-                }}
-              >
-                +
-              </button>
+              <div style={{ position: "absolute", bottom: 2, right: 2, background: "#087EA4", color: "#fff", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff" }}>
+                <Camera size={16} />
+              </div>
             </div>
+
             <input
               type="file"
-              id="photoUpload"
+              id="profilePhotoInput"
               accept="image/*"
-              onChange={handlePhotoUpload}
               style={{ display: "none" }}
+              onChange={handlePhotoUpload}
             />
-            <p style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
-              Click the photo to upload a new image
-            </p>
+
+            <h2 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#0F172A", margin: "0 0 6px 0" }}>
+              {fullName || "User Name"}
+            </h2>
+            <span style={{ fontSize: 12, fontWeight: 700, background: "#E0F2FE", color: "#087EA4", padding: "4px 12px", borderRadius: 999 }}>
+              ● {isAdmin ? "Administrator Account" : "Customer Account"}
+            </span>
           </div>
 
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#2d3748" }}>
-              Full Name
-            </label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                fontSize: "14px",
-                boxSizing: "border-box",
-              }}
-              placeholder="Enter your full name"
-            />
-          </div>
+          {savedMessage && (
+            <div style={{ padding: 12, borderRadius: 8, marginBottom: 24, fontSize: 13.5, fontWeight: 700, textAlign: "center", background: isError ? "#FEE2E2" : "#DCFCE7", color: isError ? "#DC2626" : "#16A34A" }}>
+              {savedMessage}
+            </div>
+          )}
 
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#2d3748" }}>
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                fontSize: "14px",
-                boxSizing: "border-box",
-              }}
-              placeholder="Enter your email"
-            />
-          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <User size={15} color="#087EA4" /> Full Name
+              </label>
+              <input
+                className="ai-input-box"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+              />
+            </div>
 
-          <div style={{ marginBottom: "30px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#2d3748" }}>
-              Phone
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                fontSize: "14px",
-                boxSizing: "border-box",
-              }}
-              placeholder="Enter your phone number"
-            />
-          </div>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <Mail size={15} color="#087EA4" /> Email Address
+              </label>
+              <input
+                className="ai-input-box"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+              />
+            </div>
 
-          <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-            <button
-              onClick={handleSaveProfile}
-              disabled={saving}
-              style={{
-                background: "#0ea5e9",
-                color: "white",
-                border: "none",
-                padding: "12px 30px",
-                borderRadius: "8px",
-                fontWeight: "600",
-                cursor: "pointer",
-              }}
-            >
-              {saving ? "Saving..." : "Save Profile"}
-            </button>
-            <button
-              onClick={handleBack}
-              style={{
-                background: "#e2e8f0",
-                color: "#2d3748",
-                border: "none",
-                padding: "12px 30px",
-                borderRadius: "8px",
-                fontWeight: "600",
-                cursor: "pointer",
-              }}
-            >
-              Back
-            </button>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <Phone size={15} color="#087EA4" /> Mobile Number
+              </label>
+              <input
+                className="ai-input-box"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Enter your phone number"
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+              <button
+                className="btn-primary-action"
+                style={{ flex: 1, justifyContent: "center" }}
+                onClick={handleSave}
+                disabled={saving}
+              >
+                <Save size={16} /> {saving ? "Saving Changes..." : "Save Changes"}
+              </button>
+              <button
+                className="btn-secondary-action"
+                onClick={() => navigate(-1)}
+              >
+                <ArrowLeft size={16} /> Back
+              </button>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
   );

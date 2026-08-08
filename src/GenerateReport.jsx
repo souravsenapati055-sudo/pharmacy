@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import "./GenerateReport.css";
 import { fetchAdminReport } from "./lib/store";
+import { generateMedicineReportPDF } from "./lib/pdfGenerator";
 
 export default function GenerateReport() {
   const [reportType, setReportType] = useState("sales");
@@ -63,31 +64,15 @@ export default function GenerateReport() {
     ].join("\n");
 
     if (format === "pdf") {
-      const printWindow = window.open("", "_blank", "width=900,height=700");
-      if (!printWindow) return;
-      printWindow.document.write(`
-        <html>
-          <head><title>${title}</title></head>
-          <body>
-            <h1>${title}</h1>
-            <p>Generated on ${new Date(reportData.generatedOn).toLocaleString()}</p>
-            <table border="1" cellspacing="0" cellpadding="8">
-              <thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead>
-              <tbody>
-                ${reportData.rows
-                  .map(
-                    (row) =>
-                      `<tr>${headers.map((header) => `<td>${String(row[header] ?? "")}</td>`).join("")}</tr>`
-                  )
-                  .join("")}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+      const formattedMeds = reportData.rows.map((row, idx) => ({
+        id: row.orderId || row.id || idx + 1,
+        name: row.medicine || row.name || row.customer || "Item",
+        category: row.category || "General",
+        price: row.revenue || row.total || row.price || 0,
+        discount: 0,
+        stock: row.stock !== undefined ? row.stock : (row.orders || 1),
+      }));
+      generateMedicineReportPDF(formattedMeds, title);
       return;
     }
 
