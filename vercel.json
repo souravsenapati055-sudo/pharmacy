@@ -1,14 +1,13 @@
 {
   "version": 2,
-  "routes": [
-    { "handle": "filesystem" },
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "https://pharmacy-production-e7bf.up.railway.app/api/$1"
+      "source": "/api/(.*)",
+      "destination": "https://pharmacy-production-e7bf.up.railway.app/api/$1"
     },
     {
-      "src": "/.*",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
