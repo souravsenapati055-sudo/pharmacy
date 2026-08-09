@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   PhoneCall,
   UserCheck,
-  Sparkles
+  Sparkles,
+  FileText
 } from "lucide-react";
 import { fetchOrderDeliveryTimeline } from "../lib/store";
 import InvoiceModal from "../components/InvoiceModal";
@@ -179,7 +180,7 @@ function getTimelineIndex(status) {
   return 1;
 }
 
-function OrderCard({ order, liveTimeline }) {
+function OrderCard({ order, liveTimeline, onOpenInvoice }) {
   const currentStatus = liveTimeline?.deliveryStatus || order.deliveryStatus || order.status || "ORDER_PLACED";
   const { bg, color, icon, label } = getStatusPill(currentStatus);
   const items = order.items || [];
