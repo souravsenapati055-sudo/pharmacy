@@ -1301,6 +1301,19 @@ app.post("/api/orders", async (req, res) => {
       normalizedItems
     );
 
+    // Broadcast SSE Event to all active Delivery Partners
+    try {
+      broadcastDeliveryEvent("NEW_ORDER_PLACED", {
+        orderId: createdOrder.id,
+        status: "Processing",
+        deliveryStatus: "UNASSIGNED",
+        paymentMethod,
+        total
+      });
+    } catch (e) {
+      console.warn("SSE broadcast error:", e);
+    }
+
     res.status(201).json({
       message: partner
         ? `Order placed successfully and assigned to ${partner.name}.`
