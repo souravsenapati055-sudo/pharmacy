@@ -44,7 +44,11 @@ export default function Navbar({ user, setUser, cart = [] }) {
   useEffect(() => {
     const loadProfileData = () => {
       if (!user) return;
-      const adminStatus = user?.isAdmin === true || user?.role === "admin";
+      const adminStatus =
+        Boolean(user?.isAdmin) ||
+        user?.isAdmin === 1 ||
+        user?.isAdmin === "1" ||
+        String(user?.role || "").toLowerCase().includes("admin");
       setIsAdmin(adminStatus);
       let photo = null, name = "";
       if (adminStatus) {

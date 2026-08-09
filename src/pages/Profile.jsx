@@ -78,7 +78,11 @@ export default function Profile({ user, setUser }) {
 
   const displayPhoto = photoPreview || profilePhoto || "https://i.pravatar.cc/150?img=8";
   const currentUser = user || JSON.parse(localStorage.getItem("user") || "null");
-  const isAdmin = currentUser?.isAdmin === true || currentUser?.role === "admin";
+  const isAdmin =
+    Boolean(currentUser?.isAdmin) ||
+    currentUser?.isAdmin === 1 ||
+    currentUser?.isAdmin === "1" ||
+    String(currentUser?.role || "").toLowerCase().includes("admin");
 
   return (
     <div className="customer-page">

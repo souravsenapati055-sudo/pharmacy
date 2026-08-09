@@ -68,7 +68,11 @@ export default function Inventory({ medicines = [], setMedicines, addToCart, loa
     return null;
   })();
 
-  const isAdmin = currentUser?.role === "admin" || currentUser?.isAdmin === true;
+  const isAdmin =
+    Boolean(currentUser?.isAdmin) ||
+    currentUser?.isAdmin === 1 ||
+    currentUser?.isAdmin === "1" ||
+    String(currentUser?.role || "").toLowerCase().includes("admin");
 
   const safeMedicines = Array.isArray(medicines) ? medicines : [];
 

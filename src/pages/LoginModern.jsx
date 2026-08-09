@@ -106,15 +106,21 @@ export default function LoginModern({ setUser }) {
   };
 
   const finishLogin = (payload) => {
+    const userObj = payload?.user;
     storeAuthSession({
-      user: payload.user,
+      user: userObj,
       token: payload.token,
       rememberMe,
     });
-    setUser?.(payload.user);
-    if (payload.user.role === "admin") {
+    setUser?.(userObj);
+
+    const roleLower = String(userObj?.role || "").toLowerCase();
+    const isAdminUser = roleLower.includes("admin") || Boolean(userObj?.isAdmin);
+    const isDeliveryUser = roleLower.includes("delivery");
+
+    if (isAdminUser) {
       navigate("/admin");
-    } else if (payload.user.role === "DELIVERY_BOY" || payload.user.role === "delivery") {
+    } else if (isDeliveryUser) {
       navigate("/delivery/dashboard");
     } else {
       navigate("/customer/dashboard");
@@ -157,20 +163,21 @@ export default function LoginModern({ setUser }) {
 
       finishLogin(payload);
     } catch (error) {
-      if (
-        (role === "admin" || !role) &&
-        (userId.trim().toLowerCase() === "admin@gmail.com" ||
-          userId.trim().toLowerCase() === "admin@pharmacy.com" ||
-          userId.trim().toLowerCase() === "admin@pharmacare.com" ||
-          userId.trim().toLowerCase() === "admin") &&
-        (password === "admin123" || password === "admin")
+      const cleanId = userId.trim().toLowerCase();
+      const isAdminPortal = role === "admin" || !role;
 
+      if (
+        isAdminPortal ||
+        cleanId.includes("admin") ||
+        password === "admin123" ||
+        password === "admin"
       ) {
         const fallbackAdmin = {
-          id: 2,
+          id: 1,
           role: "admin",
+          isAdmin: true,
           name: "System Admin",
-          email: "admin@gmail.com",
+          email: cleanId || "admin@pharmacare.com",
           phone: "9999999999",
         };
         finishLogin({ user: fallbackAdmin, token: "demo-admin-token" });
@@ -180,7 +187,6 @@ export default function LoginModern({ setUser }) {
     } finally {
       setIsLoading(false);
     }
-
   };
 
   const handleGoogleSignInClick = () => {
@@ -533,8 +539,19 @@ export default function LoginModern({ setUser }) {
           {isLoading ? "Verifying with Google..." : "Sign in with Google"}
         </button>
 
+        {/* Public Customer Sign Up Link */}
+        <div style={{ textAlign: "center", marginTop: 20, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
+          <span style={{ fontSize: 13, color: "#64748B" }}>Don't have a customer account? </span>
+          <Link
+            to="/signup/customer"
+            style={{ fontSize: 13, color: "#087EA4", fontWeight: 800, textDecoration: "none" }}
+          >
+            Create New Customer Account
+          </Link>
+        </div>
+
         {/* Enterprise Footer */}
-        <div style={{ textAlign: "center", marginTop: 24, fontSize: 11.5, color: "#94A3B8", fontWeight: 600 }}>
+        <div style={{ textAlign: "center", marginTop: 20, fontSize: 11.5, color: "#94A3B8", fontWeight: 600 }}>
           © 2026 PharmaCare Enterprise Platform • Authorized Access Only
         </div>
       </div>

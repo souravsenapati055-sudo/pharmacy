@@ -82,7 +82,11 @@ function AppContent() {
         if (user) {
           const [deliveryData, orderData] = await Promise.all([
             fetchDeliveryPartners(),
-            fetchOrders(user.role === "admin" ? undefined : user.id),
+            fetchOrders(
+              String(user?.role || "").toLowerCase().includes("admin") || user?.isAdmin
+                ? undefined
+                : user.id
+            ),
           ]);
           if (!ignore) {
             setDeliveryPeople(deliveryData);
@@ -152,8 +156,9 @@ function AppContent() {
     location.pathname.startsWith("/signup") ||
     location.pathname.startsWith("/admin") ||
     location.pathname.startsWith("/delivery") ||
-    user?.role === "DELIVERY_BOY" ||
-    user?.role === "delivery";
+    String(user?.role || "").toLowerCase().includes("delivery") ||
+    String(user?.role || "").toLowerCase().includes("admin") ||
+    Boolean(user?.isAdmin);
 
   const renderAdminView = (Component) => (
     <ProtectedRoute user={user} requiredRole="admin">
@@ -243,6 +248,7 @@ function AppContent() {
         />
 
         {/* Admin Dashboard Routes */}
+        <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
         <Route
           path="/admin"
           element={renderAdminView(
