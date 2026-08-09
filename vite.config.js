@@ -17,27 +17,10 @@ export default defineConfig({
     },
   },
   build: {
-    cssCodeSplit: false,
     cssMinify: false,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('recharts')) {
-              return 'recharts-vendor';
-            }
-            if (id.includes('lucide-react') || id.includes('react-icons')) {
-              return 'icons-vendor';
-            }
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-              return 'react-vendor';
-            }
-          }
-        },
-      },
-    },
   },
 })
+
 
 
 
