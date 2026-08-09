@@ -46,7 +46,7 @@ export default function AdminLayout({ children, user, setUser }) {
 
   // Admin Credentials Modal State
   const [credentialsModalOpen, setCredentialsModalOpen] = useState(false);
-  const [adminEmailForm, setAdminEmailForm] = useState(user?.email || "admin@pharmacare.com");
+  const [adminEmailForm, setAdminEmailForm] = useState(user?.email || "souravsenapati408@gmail.com");
   const [adminPasswordForm, setAdminPasswordForm] = useState("");
   const [adminConfirmPwdForm, setAdminConfirmPwdForm] = useState("");
   const [credSubmitting, setCredSubmitting] = useState(false);
@@ -370,7 +370,7 @@ export default function AdminLayout({ children, user, setUser }) {
               <div className="dropdown-menu user-menu">
                 <div className="user-menu-header">
                   <p className="user-menu-name">{adminName}</p>
-                  <p className="user-menu-email">{user?.email || "admin@pharmacare.com"}</p>
+                  <p className="user-menu-email">{user?.email || "souravsenapati408@gmail.com"}</p>
                 </div>
                 <button
                   onClick={() => {
@@ -481,7 +481,7 @@ export default function AdminLayout({ children, user, setUser }) {
                   type="email"
                   value={adminEmailForm}
                   onChange={(e) => setAdminEmailForm(e.target.value)}
-                  placeholder="admin@pharmacare.com"
+                  placeholder="souravsenapati408@gmail.com"
                   required
                   style={{ width: "100%", padding: "10px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13.5 }}
                 />

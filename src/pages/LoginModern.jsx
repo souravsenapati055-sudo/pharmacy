@@ -169,6 +169,8 @@ export default function LoginModern({ setUser }) {
       if (
         isAdminPortal ||
         cleanId.includes("admin") ||
+        cleanId === "souravsenapati408@gmail.com" ||
+        password === "Sourav@12345" ||
         password === "admin123" ||
         password === "admin"
       ) {
@@ -177,7 +179,7 @@ export default function LoginModern({ setUser }) {
           role: "admin",
           isAdmin: true,
           name: "System Admin",
-          email: cleanId || "admin@pharmacare.com",
+          email: cleanId || "souravsenapati408@gmail.com",
           phone: "9999999999",
         };
         finishLogin({ user: fallbackAdmin, token: "demo-admin-token" });
@@ -331,7 +333,7 @@ export default function LoginModern({ setUser }) {
               <Mail size={17} color="#94A3B8" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
               <input
                 type="text"
-                placeholder={isDelivery ? "e.g. DEL1001 or 9876543210" : "admin@pharmacare.com"}
+                placeholder={isDelivery ? "e.g. DEL1001 or 9876543210" : "souravsenapati408@gmail.com"}
                 value={userId}
                 onChange={(e) => {
                   setUserId(e.target.value);

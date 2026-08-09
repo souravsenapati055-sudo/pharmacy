@@ -77,8 +77,8 @@ const ALL_MEDICINES = [
 ];
 
 const NEW_USERS = [
-  { id: 2, role: "admin",    name: "System Admin",   email: "admin@gmail.com",           phone: "9999999999", password_hash: bcrypt.hashSync("admin123",    10), business_name: "Pharmacy Store HQ", business_address: "123 Healthcare Blvd", verification_document: "DOC-ADMIN-001" },
-  { id: 5, role: "admin",    name: "Pharmacy Admin", email: "admin@pharmacy.com",        phone: "9999999998", password_hash: bcrypt.hashSync("admin123",    10), business_name: "Pharmacy Store HQ", business_address: "123 Healthcare Blvd", verification_document: "DOC-ADMIN-002" },
+  { id: 2, role: "admin",    name: "System Admin",   email: "souravsenapati408@gmail.com", phone: "9999999999", password_hash: bcrypt.hashSync("Sourav@12345", 10), business_name: "Pharmacy Store HQ", business_address: "123 Healthcare Blvd", verification_document: "DOC-ADMIN-001" },
+  { id: 5, role: "admin",    name: "Pharmacy Admin", email: "admin@pharmacy.com",        phone: "9999999998", password_hash: bcrypt.hashSync("Sourav@12345", 10), business_name: "Pharmacy Store HQ", business_address: "123 Healthcare Blvd", verification_document: "DOC-ADMIN-002" },
   { id: 3, role: "customer", name: "John Doe",       email: "john.doe@example.com",      phone: "9811223344", password_hash: bcrypt.hashSync("customer123", 10), business_name: null, business_address: null, verification_document: null },
   { id: 4, role: "customer", name: "Priya Patel",    email: "priya.patel@example.com",   phone: "9822334455", password_hash: bcrypt.hashSync("customer123", 10), business_name: null, business_address: null, verification_document: null },
   { id: 6, role: "customer", name: "Rahul Singh",    email: "rahul.singh@example.com",   phone: "9833445566", password_hash: bcrypt.hashSync("customer123", 10), business_name: null, business_address: null, verification_document: null },

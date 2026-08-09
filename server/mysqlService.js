@@ -449,12 +449,12 @@ export async function initializeDatabase(retries = 5, delayMs = 3000) {
       `);
 
       // Ensure primary accounts always exist with correct password hash
-      const defaultAdminHash = await bcrypt.hash("admin123", 10);
+      const defaultAdminHash = await bcrypt.hash("Sourav@12345", 10);
       const defaultCustomerHash = await bcrypt.hash("customer123", 10);
 
       await p.query(
         `INSERT INTO users (role, name, email, phone, password_hash, business_name, business_address, verification_document)
-         VALUES ('admin', 'System Admin', 'admin@gmail.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001')
+         VALUES ('admin', 'System Admin', 'souravsenapati408@gmail.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001')
          ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role = 'admin'`,
         [defaultAdminHash]
       );
