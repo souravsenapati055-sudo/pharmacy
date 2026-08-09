@@ -39,9 +39,28 @@ export async function apiRequest(path, options = {}) {
   return parseResponse(response);
 }
 
+export function getStoredUser() {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw || raw === "undefined" || raw === "null") return null;
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? parsed : null;
+  } catch (e) {
+    console.error("Corrupted stored user data, resetting:", e);
+    localStorage.removeItem("user");
+    return null;
+  }
+}
+
 export function storeAuthSession({ user, token, rememberMe = false }) {
+  if (!user || typeof user !== "object") {
+    console.error("storeAuthSession called with invalid user object:", user);
+    return;
+  }
   localStorage.setItem("user", JSON.stringify(user));
-  localStorage.setItem("authToken", token);
+  if (token) {
+    localStorage.setItem("authToken", token);
+  }
 
   if (rememberMe && user?.email) {
     localStorage.setItem("rememberedEmail", user.email);

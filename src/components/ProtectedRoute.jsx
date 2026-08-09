@@ -1,15 +1,9 @@
 import { Navigate } from "react-router-dom";
+import { getStoredUser } from "../lib/auth";
 
 export default function ProtectedRoute({ user, children, requiredRole }) {
   // Fallback to checking localStorage if user prop is momentarily empty
-  const activeUser = user || (() => {
-    try {
-      const stored = localStorage.getItem("user");
-      return stored ? JSON.parse(stored) : null;
-    } catch (e) {
-      return null;
-    }
-  })();
+  const activeUser = user || getStoredUser();
 
   if (!activeUser) {
     if (requiredRole === "admin") {

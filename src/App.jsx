@@ -35,20 +35,22 @@ import {
   fetchOrders,
 } from "./lib/store";
 
+import { getStoredUser } from "./lib/auth";
 import AdminLayout from "./components/AdminLayout";
 
 function AppContent() {
-  const [user, setUser] = useState(() => {
-    const u = localStorage.getItem("user");
-    return u ? JSON.parse(u) : null;
-  });
+  const [user, setUser] = useState(() => getStoredUser());
 
   const [medicines, setMedicines] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
 
   const [cart, setCart] = useState(() => {
-    const stored = localStorage.getItem("cart");
-    return stored ? JSON.parse(stored) : [];
+    try {
+      const stored = localStorage.getItem("cart");
+      return stored && stored !== "undefined" ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
   });
 
   const [orders, setOrders] = useState([]);
@@ -57,8 +59,7 @@ function AppContent() {
   // Sync user across tabs
   useEffect(() => {
     const onStorage = () => {
-      const u = localStorage.getItem("user");
-      setUser(u ? JSON.parse(u) : null);
+      setUser(getStoredUser());
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -66,8 +67,7 @@ function AppContent() {
 
   // Ensure user updates instantly in same tab
   useEffect(() => {
-    const u = localStorage.getItem("user");
-    setUser(u ? JSON.parse(u) : null);
+    setUser(getStoredUser());
   }, []);
 
   useEffect(() => {
