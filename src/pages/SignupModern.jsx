@@ -84,8 +84,7 @@ export default function SignupModern({ setUser }) {
       if (payload.requiresOtp) {
         setStep("otp");
         setPendingEmail(payload.email || form.email);
-        setDevOtp(payload.devOtp || "");
-        setStatusMessage("Registration initiated! We sent a 6-digit OTP code to your email address.");
+        setStatusMessage("Registration initiated! A 6-digit OTP code has been sent to your Gmail/Email address.");
       } else {
         storeAuthSession({
           user: payload.user,
@@ -135,8 +134,7 @@ export default function SignupModern({ setUser }) {
     setIsLoading(true);
     try {
       const payload = await requestSignupOtp(pendingEmail || form.email);
-      setStatusMessage(payload.message || "A new 6-digit OTP code was sent to your email.");
-      setDevOtp(payload.devOtp || "");
+      setStatusMessage(payload.message || "A new 6-digit OTP code was sent to your Gmail/Email address.");
     } catch (err) {
       setError(err.message || "Failed to resend OTP code.");
     } finally {
@@ -170,12 +168,6 @@ export default function SignupModern({ setUser }) {
         {statusMessage && (
           <div style={{ background: "#DCFCE7", color: "#16A34A", borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 700, marginBottom: 16, textAlign: "center" }}>
             {statusMessage}
-          </div>
-        )}
-
-        {devOtp && (
-          <div style={{ background: "#DCFCE7", color: "#16A34A", borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 700, marginBottom: 16, textAlign: "center" }}>
-            Your OTP code is: <strong style={{ fontSize: 17, letterSpacing: 2 }}>{devOtp}</strong>
           </div>
         )}
 

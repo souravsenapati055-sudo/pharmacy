@@ -1,15 +1,23 @@
-/**
- * Brevo (Sendinblue) Transactional Email Service
- * Sends OTP verification emails using Brevo API or SMTP.
- */
+import nodemailer from "nodemailer";
 
+/**
+ * Transactional Email Service (Gmail SMTP / Brevo API / Fallback)
+ * Sends OTP verification emails to Gmail / Email accounts.
+ */
 export async function sendOtpEmail({ recipientEmail, recipientName, otpCode, purpose = "Verification" }) {
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT || 587;
+  const smtpUser = process.env.SMTP_USER || gmailUser;
+  const smtpPass = process.env.SMTP_PASS || gmailPass;
+
   const brevoApiKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.SENDER_EMAIL || "noreply@pharmacare.com";
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.SENDER_EMAIL || gmailUser || "noreply@pharmacare.com";
   const senderName = process.env.BREVO_SENDER_NAME || "PharmaCare Security";
 
   if (!recipientEmail || !recipientEmail.includes("@")) {
-    console.log(`[EmailService] Skipping invalid email: ${recipientEmail}`);
+    console.log(`[EmailService] Skipping invalid email recipient: ${recipientEmail}`);
     return { success: false, reason: "Invalid email recipient" };
   }
 
@@ -31,6 +39,44 @@ export async function sendOtpEmail({ recipientEmail, recipientName, otpCode, pur
     </div>
   `;
 
+  // 1. Try Nodemailer / Gmail SMTP if credentials exist
+  if (gmailUser || smtpHost) {
+    try {
+      const transporter = nodemailer.createTransport(
+        gmailUser
+          ? {
+              service: "gmail",
+              auth: {
+                user: gmailUser,
+                pass: gmailPass,
+              },
+            }
+          : {
+              host: smtpHost,
+              port: Number(smtpPort),
+              secure: Number(smtpPort) === 465,
+              auth: {
+                user: smtpUser,
+                pass: smtpPass,
+              },
+            }
+      );
+
+      const info = await transporter.sendMail({
+        from: `"${senderName}" <${senderEmail}>`,
+        to: recipientEmail,
+        subject,
+        html: htmlContent,
+      });
+
+      console.log(`[Gmail/SMTP] OTP Email successfully delivered to ${recipientEmail}. MessageId: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
+    } catch (err) {
+      console.error("[Nodemailer SMTP Error] Failed to send email:", err);
+    }
+  }
+
+  // 2. Try Brevo API if configured
   if (brevoApiKey) {
     try {
       const response = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -63,6 +109,7 @@ export async function sendOtpEmail({ recipientEmail, recipientName, otpCode, pur
     }
   }
 
-  console.log(`[EmailService Dev Mode] OTP for ${recipientEmail}: ${otpCode} (Set BREVO_API_KEY env variable on Railway for live delivery)`);
+  console.log(`[EmailService] OTP code for ${recipientEmail}: [${otpCode}] (Configure GMAIL_USER & GMAIL_APP_PASSWORD in .env for direct Gmail delivery)`);
   return { success: true, devMode: true };
 }
+

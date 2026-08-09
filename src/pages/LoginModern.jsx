@@ -219,8 +219,7 @@ export default function LoginModern({ setUser }) {
 
       setOtpSent(true);
       setResendTimer(30);
-      setStatusMessage(`Verification code sent to ${maskEmailOrPhone(userId)}`);
-      setDevOtp(payload.devOtp || "");
+      setStatusMessage(`A 6-digit OTP verification code has been sent to your Gmail / email address (${maskEmailOrPhone(userId)}).`);
     } catch (error) {
       setAuthError(error.message);
     } finally {

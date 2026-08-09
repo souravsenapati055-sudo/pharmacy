@@ -71,8 +71,7 @@ export default function ForgotPassword() {
         body: JSON.stringify({ identifier: userId.trim() }),
       });
 
-      setDevOtp(payload.devOtp || "");
-      setMessage(payload.message);
+      setMessage("A 6-digit OTP code has been sent to your Gmail/Email address.");
       setStep(2);
       setTimer(30);
       setCanResend(false);
@@ -83,14 +82,32 @@ export default function ForgotPassword() {
     }
   };
 
-  const verifyOtp = () => {
+  const verifyOtp = async () => {
     setError("");
-    if (otp.length !== 6) {
-      setError("Please enter the 6-digit OTP");
+    setMessage("");
+
+    if (!otp || otp.length !== 6) {
+      setError("Please enter the 6-digit OTP code sent to your email.");
       return;
     }
-    setMessage("OTP verified");
-    setStep(3);
+
+    setIsLoading(true);
+    try {
+      const payload = await apiRequest("/auth/forgot-password/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({
+          identifier: userId.trim(),
+          otp: otp.trim(),
+        }),
+      });
+
+      setMessage(payload.message || "OTP verified successfully!");
+      setStep(3);
+    } catch (requestError) {
+      setError(requestError.message || "Invalid OTP code. Please check the code sent to your email.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const resetPassword = async () => {
@@ -134,7 +151,6 @@ export default function ForgotPassword() {
 
         {error && <div style={errorMsg}>{error}</div>}
         {message && <div style={successMsg}>{message}</div>}
-        {devOtp && <div style={successMsg}>Local dev OTP: {devOtp}</div>}
 
         {step === 1 && (
           <>
@@ -148,7 +164,9 @@ export default function ForgotPassword() {
         {step === 2 && (
           <>
             <input type="text" placeholder="Enter OTP" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} style={input} maxLength={6} />
-            <button style={btn} onClick={verifyOtp}>Verify OTP</button>
+            <button style={btn} onClick={verifyOtp} disabled={isLoading}>
+              {isLoading ? "Verifying..." : "Verify OTP"}
+            </button>
             <div style={{ textAlign: "center", marginTop: 10 }}>
               {canResend ? (
                 <button onClick={sendOtp} style={linkBtn} disabled={isLoading}>Resend OTP</button>

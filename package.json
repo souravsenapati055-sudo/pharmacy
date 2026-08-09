@@ -8,7 +8,6 @@
     "dev": "concurrently \"npm:dev:client\" \"npm:dev:server\"",
     "dev:client": "vite",
     "dev:server": "node server/index.js",
-
     "server": "node server/index.js",
     "build": "vite build",
     "lint": "eslint .",
@@ -22,6 +21,7 @@
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.577.0",
     "mysql2": "^3.20.0",
+    "nodemailer": "^9.0.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-icons": "^5.6.0",

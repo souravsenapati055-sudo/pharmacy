@@ -625,12 +625,25 @@ async function createOtp(userId, purpose, recipientEmail = null) {
     expires_at: expiresAt,
   });
 
-  if (recipientEmail && recipientEmail.includes("@")) {
+  let targetEmail = recipientEmail;
+  if (!targetEmail) {
+    const u = await firestoreService.findUserById(userId);
+    if (u && u.email) targetEmail = u.email;
+  }
+
+  if (targetEmail && targetEmail.includes("@")) {
+    const purposeLabel =
+      purpose === "registration"
+        ? "Account Registration"
+        : purpose === "password_reset"
+        ? "Password Reset"
+        : "Sign In Verification";
+
     sendOtpEmail({
-      recipientEmail,
+      recipientEmail: targetEmail,
       otpCode,
-      purpose: purpose === "registration" ? "Account Registration" : "Sign In Verification",
-    }).catch(err => console.error("[Brevo OTP Email Error]", err));
+      purpose: purposeLabel,
+    }).catch(err => console.error("[OTP Email Error]", err));
   }
 
   return { otp: otpCode, expiresAt };
@@ -1880,6 +1893,44 @@ app.post("/api/auth/forgot-password/request-otp", async (req, res) => {
   } catch (error) {
     console.error("Forgot password OTP request error:", error);
     res.status(500).json({ message: "Unable to generate reset OTP right now." });
+  }
+});
+
+app.post("/api/auth/forgot-password/verify-otp", async (req, res) => {
+  try {
+    const { identifier, otp } = req.body;
+    if (!identifier || !otp) {
+      return res.status(400).json({ message: "Identifier and 6-digit OTP code are required." });
+    }
+
+    const cleanId = String(identifier).trim();
+    let userRow = isEmail(cleanId)
+      ? await firestoreService.findUserByEmail(cleanId)
+      : await firestoreService.findUserByPhone(cleanId);
+
+    if (!userRow) {
+      return res.status(404).json({ message: "No account found for that email or mobile number." });
+    }
+
+    userRow = await mysqlService.checkAndUpdateSuspension(userRow);
+
+    if (userRow.status === "blocked" || userRow.status === "BLOCKED" || Boolean(userRow.is_blocked)) {
+      return res.status(403).json({ message: "Your account has been blocked. Password reset is not permitted." });
+    }
+
+    if (userRow.status === "SUSPENDED" || userRow.status === "suspended") {
+      return res.status(403).json({ message: "Your account is currently suspended. Password reset is not permitted." });
+    }
+
+    const record = await firestoreService.findValidOtp(userRow.id, "password_reset", String(otp).trim());
+    if (!record) {
+      return res.status(400).json({ message: "Invalid or expired OTP code. Please enter the correct OTP sent to your email." });
+    }
+
+    res.json({ ok: true, message: "OTP verified successfully. Please enter your new password." });
+  } catch (error) {
+    console.error("Verify reset OTP error:", error);
+    res.status(500).json({ message: "Unable to verify reset OTP right now." });
   }
 });
 
