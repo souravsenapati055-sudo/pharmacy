@@ -10,6 +10,9 @@ import {
   XCircle,
   PackageCheck,
   ShieldCheck,
+  PhoneCall,
+  UserCheck,
+  Sparkles
 } from "lucide-react";
 import { fetchOrderDeliveryTimeline } from "../lib/store";
 import "../customer.css";
@@ -17,6 +20,29 @@ import "../customer.css";
 export default function Orders({ orders = [] }) {
   const [activeTab, setActiveTab] = useState("all");
   const [liveOrdersMap, setLiveOrdersMap] = useState({});
+
+  // Real-Time Polling & Live Timeline Sync
+  useEffect(() => {
+    const fetchAllTimeline = async () => {
+      if (!orders || orders.length === 0) return;
+      const map = {};
+      await Promise.all(
+        orders.map(async (o) => {
+          try {
+            const data = await fetchOrderDeliveryTimeline(o.id);
+            if (data) map[o.id] = data;
+          } catch (e) {
+            // Silently ignore timeline fetch errors
+          }
+        })
+      );
+      setLiveOrdersMap((prev) => ({ ...prev, ...map }));
+    };
+
+    fetchAllTimeline();
+    const interval = setInterval(fetchAllTimeline, 4000);
+    return () => clearInterval(interval);
+  }, [orders]);
 
   // Server-Sent Events (SSE) Real-Time Listener
   useEffect(() => {
@@ -31,7 +57,7 @@ export default function Orders({ orders = [] }) {
         try {
           const eventData = JSON.parse(e.data);
           const { type, payload } = eventData;
-          if (["DELIVERY_STATUS_CHANGED", "ORDER_ACCEPTED", "ORDER_ASSIGNED"].includes(type)) {
+          if (["DELIVERY_STATUS_CHANGED", "ORDER_ACCEPTED", "ORDER_ASSIGNED", "NEW_ORDER_PLACED"].includes(type)) {
             const orderId = payload.orderId;
             if (orderId) {
               const liveData = await fetchOrderDeliveryTimeline(orderId);
@@ -74,7 +100,7 @@ export default function Orders({ orders = [] }) {
         <div className="section-header-wrap">
           <div>
             <h1 className="page-title">My Orders & Live Delivery Tracking</h1>
-            <p className="page-subtitle">Track ongoing package deliveries with real-time status updates.</p>
+            <p className="page-subtitle">Track ongoing package deliveries with real-time delivery boy updates.</p>
           </div>
         </div>
 
@@ -128,12 +154,12 @@ export default function Orders({ orders = [] }) {
 
 function getStatusPill(status) {
   const s = (status || "").toLowerCase();
-  if (s === "delivered") return { bg: "#DCFCE7", color: "#16A34A", icon: <CheckCircle2 size={14} />, label: "Delivered" };
+  if (s === "delivered") return { bg: "#DCFCE7", color: "#16A34A", icon: <CheckCircle2 size={14} />, label: "Delivered Successfully" };
   if (s === "out_for_delivery" || s === "out for delivery") return { bg: "#FFEDD5", color: "#C2410C", icon: <Truck size={14} />, label: "Out for Delivery" };
-  if (s === "picked_up") return { bg: "#FEF3C7", color: "#D97706", icon: <PackageCheck size={14} />, label: "Picked Up" };
-  if (s === "accepted" || s === "assigned") return { bg: "#E0E7FF", color: "#3730A3", icon: <User size={14} />, label: "Partner Accepted" };
+  if (s === "picked_up") return { bg: "#FEF3C7", color: "#D97706", icon: <PackageCheck size={14} />, label: "Picked Up from Pharmacy" };
+  if (s === "accepted" || s === "assigned") return { bg: "#E0E7FF", color: "#3730A3", icon: <UserCheck size={14} />, label: "Accepted by Delivery Boy" };
   if (s === "cancelled") return { bg: "#FEE2E2", color: "#DC2626", icon: <XCircle size={14} />, label: "Cancelled" };
-  return { bg: "#E0F2FE", color: "#0369A1", icon: <Clock size={14} />, label: "Order Placed" };
+  return { bg: "#E0F2FE", color: "#0369A1", icon: <Clock size={14} />, label: "Order Placed (Open Pool)" };
 }
 
 function getTimelineIndex(status) {
@@ -161,7 +187,14 @@ function OrderCard({ order, liveTimeline }) {
     { label: "Delivered", step: 6 },
   ];
 
-  const partnerInfo = liveTimeline?.deliveryPartner || order.deliveryPartner;
+  // Resolve Partner Info
+  const livePartner = liveTimeline?.deliveryPartner;
+  const fallbackPartnerName = typeof order.deliveryPartner === "string" ? order.deliveryPartner : order.deliveryPartnerName;
+  const partnerName = livePartner?.name || (typeof order.deliveryPartner === "object" ? order.deliveryPartner?.name : fallbackPartnerName);
+  const partnerPhone = livePartner?.phone || order.deliveryPartnerPhone || (typeof order.deliveryPartner === "object" ? order.deliveryPartner?.phone : null);
+  const partnerId = livePartner?.deliveryId || (order.delivery_partner_id ? `DEL${1000 + Number(order.delivery_partner_id)}` : null);
+
+  const isAssigned = Boolean(partnerName && partnerName !== "Unassigned" && partnerName !== "undefined");
 
   return (
     <div className="order-card-container" style={{ marginBottom: 24 }}>
@@ -178,7 +211,7 @@ function OrderCard({ order, liveTimeline }) {
 
         <div style={{ fontSize: 13, color: "#64748B", display: "flex", alignItems: "center", gap: 6 }}>
           <Calendar size={14} />
-          {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "Recent"}
+          {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN") : "Recent"}
         </div>
       </div>
 
@@ -187,7 +220,7 @@ function OrderCard({ order, liveTimeline }) {
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Purchased Items</div>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", marginTop: 4 }}>
-            {items.map((i) => i.name || i.medicine_name || "Medicine").join(", ") || "Pharmaceutical Products"}
+            {items.map((i) => i.name || i.medicine_name || "Medicine").join(", ") || order.medicine || "Pharmaceutical Products"}
           </div>
         </div>
 
@@ -201,10 +234,23 @@ function OrderCard({ order, liveTimeline }) {
 
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Delivery Partner</div>
-          <div style={{ fontSize: 13, color: "#475569", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-            <User size={14} color="#0F766E" />
-            {partnerInfo ? `${partnerInfo.name} (${partnerInfo.deliveryId || 'DEL'})` : "Assigning express partner..."}
-          </div>
+          {isAssigned ? (
+            <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0F172A", display: "flex", alignItems: "center", gap: 6 }}>
+                <UserCheck size={15} color="#16A34A" />
+                {partnerName} {partnerId ? `(${partnerId})` : ""}
+              </div>
+              {partnerPhone && (
+                <a href={`tel:${partnerPhone}`} style={{ fontSize: 12, fontWeight: 600, color: "#087EA4", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
+                  <PhoneCall size={12} /> {partnerPhone}
+                </a>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, color: "#D97706", fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+              <Clock size={14} /> Assigning nearest delivery boy...
+            </div>
+          )}
         </div>
 
         <div>

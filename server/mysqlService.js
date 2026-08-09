@@ -1583,7 +1583,7 @@ export const mysqlService = {
     const p = getPool();
     let queryStr = `
       SELECT 
-        o.id, o.user_id, o.delivery_partner_id, o.status, o.payment_method, o.payment_status,
+        o.id, o.user_id, o.delivery_partner_id, o.delivery_status, o.status, o.payment_method, o.payment_status,
         o.subtotal, o.discount_total, o.delivery_fee, o.total, o.address_label, o.address_details,
         o.notes, o.created_at, o.updated_at,
         u.name AS customer_name, u.email AS customer_email,
@@ -1609,6 +1609,7 @@ export const mysqlService = {
         id: o.id,
         user_id: o.user_id,
         delivery_partner_id: o.delivery_partner_id,
+        delivery_status: o.delivery_status || o.status || 'ORDER_PLACED',
         status: o.status,
         payment_method: o.payment_method,
         payment_status: o.payment_status,

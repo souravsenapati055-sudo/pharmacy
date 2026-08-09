@@ -166,10 +166,19 @@ async function fetchOrdersForUser(userId = null) {
       total: Number(row.total),
       totalPrice: Number(row.total),
       status: row.status,
+      deliveryStatus: row.delivery_status || row.status || 'ORDER_PLACED',
       paymentMethod: row.payment_method,
       paymentStatus: row.payment_status,
-      deliveryPartner: row.delivery_partner_name,
-      deliveryPartnerPhone: row.delivery_partner_phone,
+      deliveryPartner: row.delivery_partner_id
+        ? {
+            id: row.delivery_partner_id,
+            name: row.delivery_partner_name,
+            phone: row.delivery_partner_phone,
+            deliveryId: `DEL${1000 + Number(row.delivery_partner_id)}`,
+          }
+        : null,
+      deliveryPartnerName: row.delivery_partner_name || "",
+      deliveryPartnerPhone: row.delivery_partner_phone || "",
       address: {
         label: row.address_label,
         details: row.address_details,
