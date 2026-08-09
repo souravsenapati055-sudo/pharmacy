@@ -179,6 +179,8 @@ function AppContent() {
         <Route path="/login" element={<Navigate to="/login/admin" replace />} />
         <Route path="/login/:role" element={<LoginModern setUser={setUser} />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/signup" element={<Navigate to="/signup/customer" replace />} />
+        <Route path="/register" element={<Navigate to="/signup/customer" replace />} />
         <Route path="/signup/:role" element={<SignupModern setUser={setUser} />} />
         <Route path="/" element={<Landing medicines={medicines} />} />
 

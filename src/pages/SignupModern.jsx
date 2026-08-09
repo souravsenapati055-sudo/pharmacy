@@ -328,11 +328,28 @@ export default function SignupModern({ setUser }) {
           </form>
         )}
 
-        <div style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#64748B" }}>
-          Already have an account?{" "}
-          <Link to={`/login/${role}`} style={{ color: "#087EA4", fontWeight: 700, textDecoration: "none" }}>
-            Sign In
-          </Link>
+        {/* Links below Customer Signup Page */}
+        <div style={{ textAlign: "center", marginTop: 24, paddingTop: 16, borderTop: "1px solid #F1F5F9", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 13.5, color: "#475569" }}>
+            Already registered as a patient?{" "}
+            <Link to="/login/customer" style={{ color: "#087EA4", fontWeight: 800, textDecoration: "none" }}>
+              Sign In to Customer Account
+            </Link>
+          </div>
+
+          <div style={{ fontSize: 12.5, color: "#64748B", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+            <Link to="/login/admin" style={{ color: "#0F766E", textDecoration: "none", fontWeight: 600 }}>
+              Admin Portal
+            </Link>
+            <span>•</span>
+            <Link to="/login/delivery" style={{ color: "#B45309", textDecoration: "none", fontWeight: 600 }}>
+              Delivery Partner
+            </Link>
+            <span>•</span>
+            <Link to="/" style={{ color: "#64748B", textDecoration: "none", fontWeight: 600 }}>
+              Home
+            </Link>
+          </div>
         </div>
       </div>
 

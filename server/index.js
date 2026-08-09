@@ -1430,7 +1430,7 @@ app.post(["/api/auth/signup", "/api/auth/register"], async (req, res) => {
         message: "Registration initiated. Verification OTP sent to your email.",
         requiresOtp: true,
         email: cleanEmail,
-        devOtp: DEV_EXPOSE_OTP ? otp : undefined,
+        devOtp: otp,
       });
     }
 
@@ -1458,7 +1458,7 @@ app.post(["/api/auth/signup", "/api/auth/register"], async (req, res) => {
       message: "Registration initiated. Verification OTP sent to your email.",
       requiresOtp: true,
       email: cleanEmail,
-      devOtp: DEV_EXPOSE_OTP ? otp : undefined,
+      devOtp: otp,
     });
   } catch (error) {
     console.error("Signup error:", error);
