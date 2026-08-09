@@ -429,7 +429,12 @@
 
 /* ===== SIDEBAR ===== */
 .admin-sidebar {
+  position: sticky;
+  top: 64px;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
   width: 250px;
+  flex-shrink: 0;
   background-color: #ffffff;
   border-right: 1px solid #e2e8f0;
   display: flex;
@@ -437,11 +442,13 @@
   justify-content: space-between;
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
+  z-index: 40;
 }
 
 .sidebar-collapsed .admin-sidebar {
   width: 72px;
 }
+
 
 .sidebar-nav {
   padding: 16px 12px;
