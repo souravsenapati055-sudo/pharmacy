@@ -487,6 +487,8 @@ export async function initializeDatabase(retries = 5, delayMs = 3000) {
         [defaultCustomerHash]
       );
 
+      await mysqlService.ensureDefaultAdminAccounts();
+
       await p.query(
         `INSERT INTO users (role, name, email, phone, password_hash)
          VALUES ('customer', 'Rahul Singh', 'rahul.singh@example.com', '9833445566', ?)
@@ -625,6 +627,39 @@ export const mysqlService = {
   // ─────────────────────────────────────────────
   // USERS
   // ─────────────────────────────────────────────
+  async ensureDefaultAdminAccounts() {
+    const p = getPool();
+    const defaultAdminHash = await bcrypt.hash("Sourav@12345", 10);
+
+    await p.query(
+      `INSERT INTO users (role, name, email, phone, password_hash, business_name, business_address, verification_document, status)
+       VALUES ('admin', 'System Admin', 'souravsenapati408@gmail.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001', 'ACTIVE')
+       ON DUPLICATE KEY UPDATE
+         role = 'admin',
+         name = VALUES(name),
+         password_hash = VALUES(password_hash),
+         business_name = COALESCE(NULLIF(VALUES(business_name), ''), business_name),
+         business_address = COALESCE(NULLIF(VALUES(business_address), ''), business_address),
+         verification_document = COALESCE(NULLIF(VALUES(verification_document), ''), verification_document),
+         status = 'ACTIVE'`,
+      [defaultAdminHash]
+    );
+
+    await p.query(
+      `INSERT INTO users (role, name, email, phone, password_hash, business_name, business_address, verification_document, status)
+       VALUES ('admin', 'Pharmacy Admin', 'admin@pharmacy.com', '9999999998', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-002', 'ACTIVE')
+       ON DUPLICATE KEY UPDATE
+         role = 'admin',
+         name = VALUES(name),
+         password_hash = VALUES(password_hash),
+         business_name = COALESCE(NULLIF(VALUES(business_name), ''), business_name),
+         business_address = COALESCE(NULLIF(VALUES(business_address), ''), business_address),
+         verification_document = COALESCE(NULLIF(VALUES(verification_document), ''), verification_document),
+         status = 'ACTIVE'`,
+      [defaultAdminHash]
+    );
+  },
+
   async checkAndUpdateSuspension(userRow) {
     if (!userRow) return null;
     if (userRow.status === "SUSPENDED" && userRow.suspended_until) {

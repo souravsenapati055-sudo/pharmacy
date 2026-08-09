@@ -1544,6 +1544,10 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     const cleanIdentifier = String(identifier).trim();
+    if (cleanIdentifier.includes("admin") || cleanIdentifier.includes("@")) {
+      await mysqlService.ensureDefaultAdminAccounts().catch((err) => console.warn("Admin credential sync warning:", err));
+    }
+
     let userRow = await findUserByIdentifier(cleanIdentifier);
     if (!userRow) {
       console.warn(`⚠️ Login failed: User non-existent for identifier "${cleanIdentifier}"`);
