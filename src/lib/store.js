@@ -100,6 +100,53 @@ export function updateOrderStatus(id, status) {
   });
 }
 
+export function fetchPaymentConfig() {
+  return apiRequest("/payment/config");
+}
+
+export function applyCoupon(code, orderTotal) {
+  return apiRequest("/coupons/apply", {
+    method: "POST",
+    body: JSON.stringify({ code, orderTotal }),
+  });
+}
+
+export function createRazorpayOrder(payload) {
+  return apiRequest("/payment/create-razorpay-order", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function verifyRazorpayPayment(payload) {
+  return apiRequest("/payment/verify-razorpay-signature", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function retryOrderPayment(payload) {
+  return apiRequest("/payment/retry", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchAdminPayments() {
+  return apiRequest("/admin/payments");
+}
+
+export function processRefund(payload) {
+  return apiRequest("/admin/payments/refund", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchCustomerPaymentHistory(userId) {
+  return apiRequest(`/customer/payments?userId=${encodeURIComponent(userId)}`);
+}
+
 export function fetchAdminDashboard() {
   return apiRequest("/admin/dashboard");
 }

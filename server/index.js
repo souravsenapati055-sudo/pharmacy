@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 import { initializeDatabase, firestoreService } from "./db.js";
 import { mysqlService } from "./mysqlService.js";
 import { sendOtpEmail } from "./emailService.js";
+import { paymentGatewayService } from "./paymentGateway.js";
+import { paymentStore } from "./paymentStore.js";
 
 dotenv.config();
 
@@ -1397,6 +1399,406 @@ app.patch("/api/orders/:id/status", async (req, res) => {
   } catch (error) {
     console.error("Order status update error:", error);
     res.status(500).json({ message: "Unable to update order status right now." });
+  }
+});
+
+// ─────────────────────────────────────────────
+// PAYMENT GATEWAY & CHECKOUT SYSTEM ENDPOINTS
+// ─────────────────────────────────────────────
+
+app.get("/api/payment/config", (_req, res) => {
+  res.json(paymentGatewayService.getConfig());
+});
+
+app.post("/api/coupons/apply", async (req, res) => {
+  try {
+    const { code, orderTotal = 0 } = req.body;
+    if (!code) {
+      return res.status(400).json({ message: "Coupon code is required." });
+    }
+    const result = await paymentStore.validateCoupon(code, Number(orderTotal));
+    if (!result.valid) {
+      return res.status(400).json({ message: result.message });
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to validate coupon code." });
+  }
+});
+
+app.post("/api/payment/create-razorpay-order", async (req, res) => {
+  try {
+    const { orderId, amount, userId } = req.body;
+    if (!orderId || !amount) {
+      return res.status(400).json({ message: "Order ID and amount are required." });
+    }
+
+    const gatewayOrder = await paymentGatewayService.createRazorpayOrder({
+      orderId,
+      amount,
+      notes: { userId },
+    });
+
+    await paymentStore.logPaymentAttempt({
+      order_id: Number(orderId),
+      user_id: Number(userId || 1),
+      attempt_number: 1,
+      gateway: "Razorpay",
+      gateway_order_id: gatewayOrder.id,
+      status: "initiated",
+    });
+
+    await paymentStore.createPaymentRecord({
+      order_id: Number(orderId),
+      user_id: Number(userId || 1),
+      gateway_order_id: gatewayOrder.id,
+      payment_method: req.body.paymentMethod || "card",
+      amount,
+      currency: gatewayOrder.currency || "INR",
+      status: "created",
+    });
+
+    res.json({
+      success: true,
+      razorpayOrderId: gatewayOrder.id,
+      keyId: paymentGatewayService.getConfig().keyId,
+      amount: gatewayOrder.amount,
+      currency: gatewayOrder.currency,
+      isSandbox: gatewayOrder.isSandbox,
+    });
+  } catch (error) {
+    console.error("Create Razorpay Order Error:", error);
+    res.status(500).json({ message: error.message || "Failed to create gateway payment order." });
+  }
+});
+
+app.post("/api/payment/verify-razorpay-signature", async (req, res) => {
+  try {
+    const {
+      orderId,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      paymentMethod = "card",
+      details = {},
+      userId,
+    } = req.body;
+
+    if (!orderId || !razorpay_order_id || !razorpay_payment_id) {
+      return res.status(400).json({ message: "Missing payment verification parameters." });
+    }
+
+    const verification = paymentGatewayService.verifyPaymentSignature({
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    });
+
+    if (!verification.isValid) {
+      await paymentStore.updatePaymentStatus({
+        order_id: Number(orderId),
+        gateway_payment_id: razorpay_payment_id,
+        gateway_signature: razorpay_signature,
+        status: "failed",
+        error_code: "BAD_SIGNATURE",
+        error_description: verification.reason || "Invalid gateway signature",
+        details,
+      });
+
+      await paymentStore.logAudit({
+        user_id: userId,
+        action: "PAYMENT_VERIFICATION_FAILED",
+        resource_type: "ORDER",
+        resource_id: orderId,
+        details: verification.reason,
+      });
+
+      return res.status(400).json({
+        ok: false,
+        message: `Payment Verification Failed: ${verification.reason}`,
+      });
+    }
+
+    // Success -> Update Payment Record
+    await paymentStore.updatePaymentStatus({
+      order_id: Number(orderId),
+      gateway_payment_id: razorpay_payment_id,
+      gateway_signature: razorpay_signature,
+      status: "paid",
+      details,
+    });
+
+    // Update Order Status in Database
+    const updatedOrder = await firestoreService.updateOrderStatus(orderId, "Confirmed");
+    if (updatedOrder) {
+      await firestoreService.updateOrderPaymentStatus(orderId, "paid");
+    }
+
+    await paymentStore.logAudit({
+      user_id: userId,
+      action: "PAYMENT_SUCCESS",
+      resource_type: "ORDER",
+      resource_id: orderId,
+      details: { razorpay_payment_id, razorpay_order_id, paymentMethod },
+    });
+
+    // Broadcast SSE Event for delivery team
+    try {
+      broadcastDeliveryEvent("PAYMENT_CONFIRMED", {
+        orderId,
+        paymentStatus: "paid",
+        status: "Confirmed",
+      });
+    } catch (e) {}
+
+    res.json({
+      ok: true,
+      message: "Payment verified successfully! Your order has been confirmed.",
+      orderId,
+      status: "Confirmed",
+      paymentStatus: "paid",
+      transactionId: razorpay_payment_id,
+    });
+  } catch (error) {
+    console.error("Verify Payment Error:", error);
+    res.status(500).json({ message: "Unable to verify payment signature right now." });
+  }
+});
+
+app.post("/api/payment/webhook", async (req, res) => {
+  try {
+    const signature = req.headers["x-razorpay-signature"];
+    const rawBody = JSON.stringify(req.body);
+
+    const isValid = paymentGatewayService.verifyWebhookSignature(rawBody, signature);
+    const event = req.body.event;
+    const payload = req.body.payload || {};
+
+    console.log(`[Webhook Event Received] Type: ${event}, Valid Signature: ${isValid}`);
+
+    if (event === "payment.captured" || event === "order.paid") {
+      const paymentEntity = payload.payment?.entity || {};
+      const gatewayOrderId = paymentEntity.order_id;
+      if (gatewayOrderId) {
+        await paymentStore.updatePaymentStatus({
+          order_id: paymentEntity.notes?.app_order_id || gatewayOrderId,
+          gateway_payment_id: paymentEntity.id,
+          status: "paid",
+          details: {
+            card_network: paymentEntity.card?.network,
+            card_last4: paymentEntity.card?.last4,
+            upi_vpa: paymentEntity.vpa,
+            bank_name: paymentEntity.bank,
+            wallet_name: paymentEntity.wallet,
+          },
+        });
+      }
+    } else if (event === "payment.failed") {
+      const paymentEntity = payload.payment?.entity || {};
+      if (paymentEntity.order_id) {
+        await paymentStore.updatePaymentStatus({
+          order_id: paymentEntity.notes?.app_order_id || paymentEntity.order_id,
+          gateway_payment_id: paymentEntity.id,
+          status: "failed",
+          error_code: paymentEntity.error_code || "PAYMENT_FAILED",
+          error_description: paymentEntity.error_description || "Payment failed via webhook",
+        });
+      }
+    }
+
+    res.json({ status: "ok" });
+  } catch (err) {
+    console.error("Webhook processing error:", err);
+    res.status(500).json({ message: "Webhook error" });
+  }
+});
+
+app.post("/api/payment/retry", async (req, res) => {
+  try {
+    const { orderId, paymentMethod, userId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ message: "Order ID is required." });
+    }
+
+    const order = await firestoreService.getOrderById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found." });
+    }
+
+    if (paymentMethod === "cod") {
+      await firestoreService.updateOrderPaymentStatus(orderId, "pending");
+      await firestoreService.updateOrderStatus(orderId, "Confirmed");
+      await paymentStore.updatePaymentStatus({
+        order_id: Number(orderId),
+        status: "pending",
+        details: { payment_method: "cod" },
+      });
+      return res.json({
+        ok: true,
+        message: "Switched order to Cash on Delivery. Order confirmed!",
+        orderStatus: "Confirmed",
+        paymentStatus: "pending",
+      });
+    }
+
+    const gatewayOrder = await paymentGatewayService.createRazorpayOrder({
+      orderId,
+      amount: order.total,
+      notes: { userId, retry: "true" },
+    });
+
+    await paymentStore.logPaymentAttempt({
+      order_id: Number(orderId),
+      user_id: Number(userId || order.user_id || 1),
+      attempt_number: 2,
+      gateway: "Razorpay",
+      gateway_order_id: gatewayOrder.id,
+      status: "retry_initiated",
+    });
+
+    res.json({
+      success: true,
+      razorpayOrderId: gatewayOrder.id,
+      keyId: paymentGatewayService.getConfig().keyId,
+      amount: gatewayOrder.amount,
+      currency: gatewayOrder.currency,
+      isSandbox: gatewayOrder.isSandbox,
+    });
+  } catch (err) {
+    console.error("Retry payment error:", err);
+    res.status(500).json({ message: err.message || "Failed to retry payment." });
+  }
+});
+
+app.post("/api/admin/payments/refund", async (req, res) => {
+  try {
+    const { paymentId, orderId, amount, reason, adminUserId, adminName } = req.body;
+    if (!paymentId || !orderId) {
+      return res.status(400).json({ message: "Payment ID and Order ID are required for refund." });
+    }
+
+    const order = await firestoreService.getOrderById(orderId);
+    const numAmount = Number(amount || order?.total || 0);
+
+    const refundResult = await paymentGatewayService.processRefund({
+      gatewayPaymentId: req.body.gatewayPaymentId || `pay_ref_${paymentId}`,
+      amount: numAmount,
+      reason: reason || "Customer order cancellation refund",
+    });
+
+    const refundRecord = await paymentStore.createRefundRecord({
+      payment_id: Number(paymentId),
+      order_id: Number(orderId),
+      user_id: Number(order?.user_id || 1),
+      gateway_refund_id: refundResult.id,
+      amount: numAmount,
+      currency: refundResult.currency || "INR",
+      status: "completed",
+      reason: reason || "Admin initiated refund",
+      initiated_by_user_id: Number(adminUserId || 1),
+    });
+
+    await paymentStore.updatePaymentStatus({
+      order_id: Number(orderId),
+      status: Number(amount) < Number(order?.total) ? "partially_refunded" : "refunded",
+    });
+
+    await firestoreService.updateOrderPaymentStatus(orderId, "refunded");
+
+    await paymentStore.logAudit({
+      user_id: adminUserId,
+      user_name: adminName || "Admin",
+      action: "REFUND_ISSUED",
+      resource_type: "PAYMENT",
+      resource_id: paymentId,
+      details: { refundId: refundResult.id, amount: numAmount, reason },
+    });
+
+    res.json({
+      ok: true,
+      message: `Refund of ₹${numAmount} successfully processed! Refund ID: ${refundResult.id}`,
+      refund: refundRecord,
+    });
+  } catch (err) {
+    console.error("Refund Process Error:", err);
+    res.status(500).json({ message: err.message || "Failed to process refund." });
+  }
+});
+
+app.get("/api/admin/payments", async (_req, res) => {
+  try {
+    const overview = await paymentStore.getAdminFinancialOverview();
+    const local = await paymentStore.getLocalStore();
+    let payments = local.payments || [];
+    let refunds = local.refunds || [];
+    let orders = await firestoreService.getOrders();
+
+    const enrichedPayments = payments.map((p) => {
+      const ord = orders.find((o) => Number(o.id) === Number(p.order_id)) || {};
+      const ref = refunds.find((r) => Number(r.payment_id) === Number(p.id) || Number(r.order_id) === Number(p.order_id));
+      return {
+        id: p.id,
+        orderId: p.order_id,
+        userId: p.user_id,
+        customerName: ord.userName || ord.user_name || "Patient / Customer",
+        customerEmail: ord.userEmail || ord.email || "customer@pharmacare.com",
+        amount: Number(p.amount || ord.total || 0),
+        paymentMethod: p.payment_method || ord.payment_method || "card",
+        paymentStatus: p.status || ord.payment_status || "paid",
+        orderStatus: ord.status || "Processing",
+        gatewayPaymentId: p.gateway_payment_id || `pay_${p.id}`,
+        gatewayOrderId: p.gateway_order_id || `order_${p.order_id}`,
+        refundStatus: ref ? ref.status : p.status === "refunded" ? "completed" : "none",
+        refundAmount: ref ? ref.amount : 0,
+        createdAt: p.created_at || ord.created_at || new Date().toISOString(),
+      };
+    });
+
+    res.json({
+      overview: overview.kpi,
+      payments: enrichedPayments,
+      refunds,
+    });
+  } catch (err) {
+    console.error("Admin payments error:", err);
+    res.status(500).json({ message: "Failed to load admin payments data." });
+  }
+});
+
+app.get("/api/customer/payments", async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required." });
+    }
+    const orders = await fetchOrdersForUser(userId);
+    const local = await paymentStore.getLocalStore();
+    const payments = local.payments || [];
+    const refunds = local.refunds || [];
+
+    const history = orders.map((ord) => {
+      const p = payments.find((pay) => Number(pay.order_id) === Number(ord.id)) || {};
+      const r = refunds.find((ref) => Number(ref.order_id) === Number(ord.id));
+      return {
+        orderId: ord.id,
+        formattedOrderId: `#ORD-${10000 + Number(ord.id)}`,
+        date: ord.date || ord.created_at,
+        amount: ord.total,
+        paymentMethod: ord.paymentMethod || ord.payment_method,
+        paymentStatus: ord.paymentStatus || ord.payment_status || "paid",
+        orderStatus: ord.status,
+        transactionId: p.gateway_payment_id || `PAY-PHARMA-${1000 + Number(ord.id)}`,
+        gatewayOrderId: p.gateway_order_id || null,
+        refundStatus: r ? r.status : "none",
+        items: ord.items || [],
+        address: ord.address || {},
+      };
+    });
+
+    res.json(history);
+  } catch (err) {
+    console.error("Customer payments error:", err);
+    res.status(500).json({ message: "Failed to fetch payment history." });
   }
 });
 

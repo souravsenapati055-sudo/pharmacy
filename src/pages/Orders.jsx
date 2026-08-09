@@ -15,11 +15,13 @@ import {
   Sparkles
 } from "lucide-react";
 import { fetchOrderDeliveryTimeline } from "../lib/store";
+import InvoiceModal from "../components/InvoiceModal";
 import "../customer.css";
 
 export default function Orders({ orders = [] }) {
   const [activeTab, setActiveTab] = useState("all");
   const [liveOrdersMap, setLiveOrdersMap] = useState({});
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   // Real-Time Polling & Live Timeline Sync
   useEffect(() => {
@@ -144,9 +146,14 @@ export default function Orders({ orders = [] }) {
             <p style={{ fontSize: 13.5, color: "#64748B" }}>You don't have any orders under this category.</p>
           </div>
         ) : (
-          displayedOrders.map((order) => <OrderCard key={order.id} order={order} liveTimeline={liveOrdersMap[order.id]} />)
+          displayedOrders.map((order) => (
+            <OrderCard key={order.id} order={order} liveTimeline={liveOrdersMap[order.id]} onOpenInvoice={setSelectedInvoice} />
+          ))
         )}
 
+        {selectedInvoice && (
+          <InvoiceModal order={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
+        )}
       </div>
     </div>
   );
@@ -257,6 +264,14 @@ function OrderCard({ order, liveTimeline }) {
           <div style={{ fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Total Amount</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", marginTop: 2 }}>
             ₹{order.total || order.totalPrice}
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <button
+              onClick={() => onOpenInvoice && onOpenInvoice(order)}
+              style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 6, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, color: "#087EA4", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+            >
+              <FileText size={13} /> View Receipt
+            </button>
           </div>
         </div>
       </div>

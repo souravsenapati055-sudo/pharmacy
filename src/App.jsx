@@ -29,6 +29,7 @@ import Restock from "./Restock";
 import BulkDiscount from "./BulkDiscount";
 import EmergencyOrder from "./EmergencyOrder";
 import GenerateReport from "./GenerateReport";
+import AdminPaymentDashboard from "./pages/AdminPaymentDashboard";
 import {
   fetchDeliveryPartners,
   fetchMedicines,
@@ -270,6 +271,12 @@ function AppContent() {
         <Route
           path="/admin/customers"
           element={renderAdminView(<AdminCustomers adminUser={user} />)}
+        />
+
+        {/* Admin Payments & Refunds Route */}
+        <Route
+          path="/admin/payments"
+          element={renderAdminView(<AdminPaymentDashboard />)}
         />
 
         {/* Admin Analytics Route */}

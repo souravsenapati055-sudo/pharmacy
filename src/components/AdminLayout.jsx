@@ -145,6 +145,7 @@ export default function AdminLayout({ children, user, setUser }) {
         { label: "Dashboard", path: "/admin", icon: LayoutDashboard },
         { label: "Orders", path: "/admin?tab=orders", icon: ShoppingBag },
         { label: "Customers", path: "/admin/customers", icon: Users },
+        { label: "Payments & Refunds", path: "/admin/payments", icon: CreditCard },
         { label: "Delivery Management", path: "/admin/delivery", icon: Truck },
         { label: "Analytics", path: "/admin/analytics", icon: BarChart3 },
         { label: "Reports", path: "/admin/generate-report", icon: FileText },
