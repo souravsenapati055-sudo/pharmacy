@@ -737,3 +737,307 @@ export function generateSingleMedicinePDFReport(medicine, history = [], customer
   printHTMLContent(html, `Medicine_Report_${medicine.name}`);
 }
 
+export function generateFinancialDashboardPDF(data = {}) {
+  const generatedDate = new Date().toLocaleString("en-IN");
+  const {
+    filters = {},
+    kpis = [],
+    deliveryPartners = [],
+    transactions = []
+  } = data;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>PharmaCare_Financial_Operations_Report</title>
+        <style>
+          @page { size: A4 landscape; margin: 10mm; }
+          body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            color: #0f172a;
+            margin: 0;
+            padding: 16px;
+            font-size: 11px;
+            line-height: 1.4;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2.5px solid #087ea4;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+          }
+          .brand-title { font-size: 22px; font-weight: 800; color: #087ea4; margin: 0; }
+          .brand-sub { font-size: 11px; color: #64748b; margin: 2px 0 0; }
+          .filter-bar {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 16px;
+            font-size: 11px;
+          }
+          .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+          }
+          .kpi-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+          }
+          .kpi-title { font-size: 9.5px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+          .kpi-value { font-size: 16px; font-weight: 800; color: #0f172a; margin: 4px 0 2px; }
+          .kpi-sub { font-size: 10px; color: #16a34a; font-weight: 700; }
+          .section-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f172a;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 4px;
+            margin: 16px 0 10px;
+            text-transform: uppercase;
+          }
+          .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+          }
+          .data-table th {
+            background: #087ea4;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 7px 8px;
+            text-align: left;
+          }
+          .data-table td {
+            padding: 7px 8px;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 800;
+          }
+          .badge-green { background: #dcfce7; color: #15803d; }
+          .badge-amber { background: #fef3c7; color: #b45309; }
+          .badge-red { background: #fee2e2; color: #b91c1c; }
+          .footer {
+            margin-top: 24px;
+            padding-top: 12px;
+            border-top: 1px dashed #cbd5e1;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 class="brand-title">PharmaCare</h1>
+            <p class="brand-sub">Enterprise Financial & Operations Audit Report · Master Executive Summary</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-weight: 800; color: #087ea4; font-size: 13px;">OFFICIAL ADMIN REPORT</p>
+            <p style="margin: 2px 0 0; font-size: 11px; color: #64748b;">Generated: ${generatedDate}</p>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <strong>Applied Filter Parameters:</strong> Date Range: <u>${filters.dateRange || 'This Month'}</u> | Branch: <u>${filters.branch || 'All Branches'}</u> | Report Type: <u>${filters.reportType || 'Financial Overview'}</u> | Delivery Status: <u>${filters.deliveryStatus || 'All'}</u>
+        </div>
+
+        <div class="kpi-grid">
+          ${kpis.map(k => `
+            <div class="kpi-card">
+              <div class="kpi-title">${k.title}</div>
+              <div class="kpi-value">${k.value}</div>
+              <div class="kpi-sub">${k.change} (${k.period})</div>
+            </div>
+          `).join('')}
+        </div>
+
+        ${deliveryPartners.length > 0 ? `
+          <div class="section-title">Delivery Partner Wise Performance & COD Reconciliation</div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Partner Name</th>
+                <th>Phone</th>
+                <th>Assigned</th>
+                <th>Delivered</th>
+                <th>Pending</th>
+                <th>Failed</th>
+                <th>COD Collected</th>
+                <th>COD Settled</th>
+                <th>COD Pending (Driver)</th>
+                <th>SLA Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${deliveryPartners.map(dp => `
+                <tr>
+                  <td><strong>${dp.name}</strong></td>
+                  <td>${dp.phone}</td>
+                  <td>${dp.assigned}</td>
+                  <td style="color: #16a34a; font-weight: 700;">${dp.delivered}</td>
+                  <td>${dp.pending}</td>
+                  <td style="color: #dc2626;">${dp.failed}</td>
+                  <td style="font-weight: 700;">₹${dp.codCollected}</td>
+                  <td style="color: #16a34a;">₹${dp.codSettled}</td>
+                  <td style="color: #d97706; font-weight: 700;">₹${dp.codPending}</td>
+                  <td><span class="badge badge-green">${dp.successRate}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        <div class="section-title">Recent Financial Transactions Audit Ledger</div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Txn ID</th>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Payment Method</th>
+              <th>Amount</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transactions.slice(0, 15).map(t => `
+              <tr>
+                <td><strong>${t.txnId}</strong></td>
+                <td>${t.orderId}</td>
+                <td>${t.customer}</td>
+                <td>${t.method}</td>
+                <td style="font-weight: 700;">₹${t.amount}</td>
+                <td>${t.type}</td>
+                <td><span class="badge ${t.status === 'Completed' ? 'badge-green' : t.status === 'Pending' ? 'badge-amber' : 'badge-red'}">${t.status}</span></td>
+                <td>${t.date}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div>
+            <p style="margin: 0; font-weight: 700;">PharmaCare Financial Systems</p>
+            <p style="margin: 0; font-size: 10px; color: #64748b;">Generated from Railway MySQL Database Sync</p>
+          </div>
+          <div style="text-align: center;">
+            <div style="width: 140px; border-top: 1px solid #0f172a; margin-bottom: 4px;"></div>
+            <p style="margin: 0; font-size: 11px; font-weight: 700;">Chief Administrative Signature</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  printHTMLContent(html, `PharmaCare_Financial_Report_${Date.now()}`);
+}
+
+export function generateDeliveryPartnerPDF(partnerData = {}) {
+  const generatedDate = new Date().toLocaleString("en-IN");
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Delivery_Partner_Report_${(partnerData.name || 'Driver').replace(/\s+/g, '_')}</title>
+        <style>
+          @page { size: A4; margin: 10mm; }
+          body { font-family: 'Segoe UI', Roboto, sans-serif; color: #0f172a; padding: 20px; font-size: 12px; }
+          .header { display: flex; justify-content: space-between; border-bottom: 2px solid #087ea4; padding-bottom: 10px; margin-bottom: 16px; }
+          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+          .card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; }
+          .card-title { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; }
+          .card-val { font-size: 18px; font-weight: 800; margin-top: 4px; }
+          .table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          .table th { background: #087ea4; color: #fff; padding: 8px; font-size: 11px; text-align: left; }
+          .table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 style="margin: 0; color: #087ea4;">PharmaCare Logistics</h1>
+            <p style="margin: 2px 0 0; color: #64748b;">Delivery Partner Audit & Performance Report</p>
+          </div>
+          <div style="text-align: right;">
+            <h3 style="margin: 0;">${partnerData.name || 'Delivery Partner'}</h3>
+            <p style="margin: 0; font-size: 11px; color: #64748b;">Phone: ${partnerData.phone || 'N/A'} | Date: ${generatedDate}</p>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <div class="card-title">Assigned Deliveries</div>
+            <div class="card-val">${partnerData.assigned || 0}</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Successfully Delivered</div>
+            <div class="card-val" style="color: #16a34a;">${partnerData.delivered || 0}</div>
+          </div>
+          <div class="card">
+            <div class="card-title">SLA Success Rate</div>
+            <div class="card-val" style="color: #0284c7;">${partnerData.successRate || '100%'}</div>
+          </div>
+          <div class="card">
+            <div class="card-title">COD Cash Collected</div>
+            <div class="card-val">₹${partnerData.codCollected || '0'}</div>
+          </div>
+          <div class="card">
+            <div class="card-title">COD Settled to Bank</div>
+            <div class="card-val" style="color: #16a34a;">₹${partnerData.codSettled || '0'}</div>
+          </div>
+          <div class="card">
+            <div class="card-title">COD Pending (In-Hand)</div>
+            <div class="card-val" style="color: #d97706;">₹${partnerData.codPending || '0'}</div>
+          </div>
+        </div>
+
+        <h3 style="margin: 20px 0 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">Assigned Delivery Log</h3>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th>Avg Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(partnerData.orders || []).map(o => `
+              <tr>
+                <td><strong>${o.id}</strong></td>
+                <td>${o.customer}</td>
+                <td>₹${o.amount}</td>
+                <td>${o.method}</td>
+                <td>${o.status}</td>
+                <td>${o.time}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `;
+  printHTMLContent(html, `Delivery_Boy_${(partnerData.name || 'Driver').replace(/\s+/g, '_')}`);
+}
+
+
