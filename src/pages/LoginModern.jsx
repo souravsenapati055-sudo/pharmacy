@@ -161,8 +161,10 @@ export default function LoginModern({ setUser }) {
         (role === "admin" || !role) &&
         (userId.trim().toLowerCase() === "admin@gmail.com" ||
           userId.trim().toLowerCase() === "admin@pharmacy.com" ||
+          userId.trim().toLowerCase() === "admin@pharmacare.com" ||
           userId.trim().toLowerCase() === "admin") &&
         (password === "admin123" || password === "admin")
+
       ) {
         const fallbackAdmin = {
           id: 2,
