@@ -17,7 +17,8 @@ export default defineConfig({
     },
   },
   build: {
-    cssMinify: false, // Disable CSS minification to avoid lightningcss issues
+    cssCodeSplit: false,
+    cssMinify: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -37,4 +38,7 @@ export default defineConfig({
     },
   },
 })
+
+
+
 
