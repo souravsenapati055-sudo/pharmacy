@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   Layers,
   ChevronRight,
+  CreditCard,
 } from "lucide-react";
 import "./AdminLayout.css";
 
