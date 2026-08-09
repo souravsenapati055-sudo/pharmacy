@@ -386,13 +386,19 @@ function buildAnalytics(range, baseData) {
       quantity: item.quantity,
     }));
 
-  const categoryMap = medicines.reduce((acc, medicine) => {
+  const categoryData = [];
+  medicines.forEach((medicine) => {
     const sold = orderItems
       .filter((item) => String(item.medicine_id) === String(medicine.id))
-      .reduce((sum, item) => sum + item.quantity, 0);
-    acc.set(medicine.category, (acc.get(medicine.category) || 0) + sold);
-    return acc;
-  }, new Map());
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const categoryName = medicine.category || "General";
+    const existing = categoryData.find((entry) => entry.name === categoryName);
+    if (existing) {
+      existing.value += sold;
+    } else {
+      categoryData.push({ name: categoryName, value: sold });
+    }
+  });
 
   const deliveredOrders = orders.filter((order) => {
     const s = (order.delivery_status || order.status || "").toLowerCase();
@@ -1544,7 +1550,8 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     const cleanIdentifier = String(identifier).trim();
-    if (cleanIdentifier.includes("admin") || cleanIdentifier.includes("@")) {
+    const isAdminLogin = cleanIdentifier.includes("admin") || cleanIdentifier.includes("@") || String(req.body?.role || "").toLowerCase() === "admin";
+    if (isAdminLogin) {
       await mysqlService.ensureDefaultAdminAccounts().catch((err) => console.warn("Admin credential sync warning:", err));
     }
 

@@ -629,34 +629,58 @@ export const mysqlService = {
   // ─────────────────────────────────────────────
   async ensureDefaultAdminAccounts() {
     const p = getPool();
-    const defaultAdminHash = await bcrypt.hash("Sourav@12345", 10);
+    const expectedPassword = process.env.ADMIN_PASSWORD || "Sourav@12345";
+    const defaultAdminHash = await bcrypt.hash(expectedPassword, 10);
+
+    const adminAccounts = [
+      {
+        role: "admin",
+        name: "System Admin",
+        email: "souravsenapati408@gmail.com",
+        phone: "9999999999",
+        businessName: "Pharmacy Store HQ",
+        businessAddress: "123 Healthcare Blvd",
+        verificationDocument: "DOC-ADMIN-001",
+      },
+      {
+        role: "admin",
+        name: "Pharmacy Admin",
+        email: "admin@pharmacy.com",
+        phone: "9999999998",
+        businessName: "Pharmacy Store HQ",
+        businessAddress: "123 Healthcare Blvd",
+        verificationDocument: "DOC-ADMIN-002",
+      },
+    ];
+
+    for (const account of adminAccounts) {
+      await p.query(
+        `INSERT INTO users (role, name, email, phone, password_hash, business_name, business_address, verification_document, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+         ON DUPLICATE KEY UPDATE
+           role = VALUES(role),
+           name = VALUES(name),
+           password_hash = VALUES(password_hash),
+           business_name = COALESCE(NULLIF(VALUES(business_name), ''), business_name),
+           business_address = COALESCE(NULLIF(VALUES(business_address), ''), business_address),
+           verification_document = COALESCE(NULLIF(VALUES(verification_document), ''), verification_document),
+           status = 'ACTIVE'`,
+        [
+          account.role,
+          account.name,
+          account.email,
+          account.phone,
+          defaultAdminHash,
+          account.businessName,
+          account.businessAddress,
+          account.verificationDocument,
+        ]
+      );
+    }
 
     await p.query(
-      `INSERT INTO users (role, name, email, phone, password_hash, business_name, business_address, verification_document, status)
-       VALUES ('admin', 'System Admin', 'souravsenapati408@gmail.com', '9999999999', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-001', 'ACTIVE')
-       ON DUPLICATE KEY UPDATE
-         role = 'admin',
-         name = VALUES(name),
-         password_hash = VALUES(password_hash),
-         business_name = COALESCE(NULLIF(VALUES(business_name), ''), business_name),
-         business_address = COALESCE(NULLIF(VALUES(business_address), ''), business_address),
-         verification_document = COALESCE(NULLIF(VALUES(verification_document), ''), verification_document),
-         status = 'ACTIVE'`,
-      [defaultAdminHash]
-    );
-
-    await p.query(
-      `INSERT INTO users (role, name, email, phone, password_hash, business_name, business_address, verification_document, status)
-       VALUES ('admin', 'Pharmacy Admin', 'admin@pharmacy.com', '9999999998', ?, 'Pharmacy Store HQ', '123 Healthcare Blvd', 'DOC-ADMIN-002', 'ACTIVE')
-       ON DUPLICATE KEY UPDATE
-         role = 'admin',
-         name = VALUES(name),
-         password_hash = VALUES(password_hash),
-         business_name = COALESCE(NULLIF(VALUES(business_name), ''), business_name),
-         business_address = COALESCE(NULLIF(VALUES(business_address), ''), business_address),
-         verification_document = COALESCE(NULLIF(VALUES(verification_document), ''), verification_document),
-         status = 'ACTIVE'`,
-      [defaultAdminHash]
+      `UPDATE users SET password_hash = ? WHERE role = 'admin' AND LOWER(TRIM(email)) IN (?, ?)`,
+      [defaultAdminHash, ...adminAccounts.map((account) => account.email.toLowerCase())]
     );
   },
 

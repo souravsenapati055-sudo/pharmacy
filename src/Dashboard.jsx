@@ -796,7 +796,7 @@ export default function Dashboard({
                       <td>
                         {order.deliveryPartner ? (
                           <span className="delivery-partner-tag">
-                            <Truck size={13} /> {order.deliveryPartner}
+                            <Truck size={13} /> {typeof order.deliveryPartner === "string" ? order.deliveryPartner : order.deliveryPartner?.name || "Unassigned"}
                           </span>
                         ) : (
                           <span className="text-muted text-xs">Unassigned</span>
@@ -1316,7 +1316,7 @@ export default function Dashboard({
                         <td>
                           {order.deliveryPartner ? (
                             <span className="delivery-partner-tag">
-                              <Truck size={13} /> {order.deliveryPartner}
+                              <Truck size={13} /> {typeof order.deliveryPartner === "string" ? order.deliveryPartner : order.deliveryPartner?.name || "Unassigned"}
                             </span>
                           ) : (
                             <span className="text-muted text-xs">Unassigned</span>
