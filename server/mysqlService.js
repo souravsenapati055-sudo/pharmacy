@@ -1660,15 +1660,12 @@ export const mysqlService = {
     try {
       await conn.beginTransaction();
 
-      // Pick next available delivery partner if available
-      const [availablePartners] = await conn.query(
-        "SELECT id FROM delivery_partners WHERE is_active = 1 ORDER BY active_order_count ASC LIMIT 1"
-      );
-      const assignedPartnerId = availablePartners.length > 0 ? availablePartners[0].id : null;
+      // Leave delivery_partner_id as NULL so order enters the open pool for all delivery boys
+      const assignedPartnerId = null;
 
       const [orderResult] = await conn.query(
-        `INSERT INTO orders (user_id, delivery_partner_id, status, payment_method, payment_status, subtotal, discount_total, delivery_fee, total, address_label, address_details, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO orders (user_id, delivery_partner_id, delivery_status, status, payment_method, payment_status, subtotal, discount_total, delivery_fee, total, address_label, address_details, notes)
+         VALUES (?, ?, 'ORDER_PLACED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderData.user_id,
           assignedPartnerId,
@@ -2033,8 +2030,8 @@ export const mysqlService = {
       FROM orders o
       JOIN users u ON o.user_id = u.id
       LEFT JOIN order_items oi ON o.id = oi.order_id
-      WHERE o.delivery_partner_id IS NULL
-        AND (o.delivery_status IS NULL OR o.delivery_status IN ('ORDER_PLACED', 'CONFIRMED', 'ASSIGNED'))
+      WHERE (o.delivery_partner_id IS NULL OR o.delivery_status IN ('ORDER_PLACED', 'UNASSIGNED', 'Processing'))
+        AND (o.delivery_status IS NULL OR o.delivery_status NOT IN ('ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED', 'CANCELLED'))
       GROUP BY o.id
       ORDER BY o.id DESC
     `);
@@ -2320,7 +2317,7 @@ export const mysqlService = {
            accepted_at = NOW()
        WHERE id = ?
          AND (delivery_partner_id IS NULL OR delivery_partner_id = ?)
-         AND (delivery_status IS NULL OR delivery_status IN ('ORDER_PLACED', 'CONFIRMED', 'ASSIGNED'))`,
+         AND (delivery_status IS NULL OR delivery_status IN ('ORDER_PLACED', 'UNASSIGNED', 'Processing', 'PENDING', 'CONFIRMED', 'ASSIGNED'))`,
       [partnerId, orderId, partnerId]
     );
 
