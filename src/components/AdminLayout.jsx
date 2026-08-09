@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, NavLink } from "react-router-dom";
-import { clearAuthSession } from "../lib/auth";
+import { clearAuthSession, apiRequest } from "../lib/auth";
 import {
   Pill,
   LayoutDashboard,
@@ -43,6 +43,55 @@ export default function AdminLayout({ children, user, setUser }) {
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+
+  // Admin Credentials Modal State
+  const [credentialsModalOpen, setCredentialsModalOpen] = useState(false);
+  const [adminEmailForm, setAdminEmailForm] = useState(user?.email || "admin@pharmacare.com");
+  const [adminPasswordForm, setAdminPasswordForm] = useState("");
+  const [adminConfirmPwdForm, setAdminConfirmPwdForm] = useState("");
+  const [credSubmitting, setCredSubmitting] = useState(false);
+  const [credStatusMsg, setCredStatusMsg] = useState("");
+  const [credErrorMsg, setCredErrorMsg] = useState("");
+
+  const handleUpdateAdminCredentials = async (e) => {
+    e.preventDefault();
+    setCredStatusMsg("");
+    setCredErrorMsg("");
+
+    if (!adminEmailForm.trim()) {
+      setCredErrorMsg("Please enter a valid email address.");
+      return;
+    }
+    if (adminPasswordForm && adminPasswordForm !== adminConfirmPwdForm) {
+      setCredErrorMsg("Passwords do not match.");
+      return;
+    }
+
+    setCredSubmitting(true);
+    try {
+      const res = await apiRequest("/admin/update-credentials", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: user?.id || 1,
+          email: adminEmailForm.trim(),
+          newPassword: adminPasswordForm,
+        }),
+      });
+
+      const updatedUser = { ...user, email: adminEmailForm.trim() };
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      if (setUser) setUser(updatedUser);
+
+      setCredStatusMsg(res.message || "Admin credentials updated successfully!");
+      setAdminPasswordForm("");
+      setAdminConfirmPwdForm("");
+      setTimeout(() => setCredentialsModalOpen(false), 2500);
+    } catch (err) {
+      setCredErrorMsg(err.message || "Failed to update admin credentials.");
+    } finally {
+      setCredSubmitting(false);
+    }
+  };
 
   const quickActionsRef = useRef(null);
   const notificationsRef = useRef(null);
@@ -326,10 +375,10 @@ export default function AdminLayout({ children, user, setUser }) {
                 <button
                   onClick={() => {
                     setUserDropdownOpen(false);
-                    navigate("/profile");
+                    setCredentialsModalOpen(true);
                   }}
                 >
-                  <User size={15} /> Account Settings
+                  <User size={15} /> Change Email & Password
                 </button>
                 <button
                   onClick={() => {
@@ -402,6 +451,77 @@ export default function AdminLayout({ children, user, setUser }) {
         {/* Content Area */}
         <main className="admin-main-content">{children}</main>
       </div>
+
+      {/* ADMIN CREDENTIALS CHANGE MODAL */}
+      {credentialsModalOpen && (
+        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "#FFFFFF", borderRadius: 16, maxWidth: 460, width: "100%", padding: 24, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #E2E8F0", paddingBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0F172A" }}>Change Admin Email & Password</h3>
+              <button onClick={() => setCredentialsModalOpen(false)} style={{ background: "none", border: "none", color: "#64748B", cursor: "pointer" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateAdminCredentials}>
+              {credErrorMsg && (
+                <div style={{ padding: 10, borderRadius: 8, background: "#FEE2E2", color: "#DC2626", fontSize: 13, fontWeight: 700, marginBottom: 14 }}>
+                  ⚠️ {credErrorMsg}
+                </div>
+              )}
+              {credStatusMsg && (
+                <div style={{ padding: 10, borderRadius: 8, background: "#DCFCE7", color: "#16A34A", fontSize: 13, fontWeight: 700, marginBottom: 14 }}>
+                  ✅ {credStatusMsg}
+                </div>
+              )}
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12.5, fontWeight: 700, color: "#475569", display: "block", marginBottom: 4 }}>Admin Login Email ID *</label>
+                <input
+                  type="email"
+                  value={adminEmailForm}
+                  onChange={(e) => setAdminEmailForm(e.target.value)}
+                  placeholder="admin@pharmacare.com"
+                  required
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13.5 }}
+                />
+                <span style={{ fontSize: 11, color: "#64748B", marginTop: 2, display: "block" }}>You will use this email ID to sign into the Admin portal.</span>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12.5, fontWeight: 700, color: "#475569", display: "block", marginBottom: 4 }}>New Admin Password (Optional)</label>
+                <input
+                  type="password"
+                  value={adminPasswordForm}
+                  onChange={(e) => setAdminPasswordForm(e.target.value)}
+                  placeholder="Leave blank to keep existing password"
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13.5 }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 12.5, fontWeight: 700, color: "#475569", display: "block", marginBottom: 4 }}>Confirm New Password</label>
+                <input
+                  type="password"
+                  value={adminConfirmPwdForm}
+                  onChange={(e) => setAdminConfirmPwdForm(e.target.value)}
+                  placeholder="Re-enter new password"
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13.5 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button type="button" onClick={() => setCredentialsModalOpen(false)} style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #CBD5E1", background: "#FFF", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={credSubmitting} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: "#087EA4", color: "#FFF", fontSize: 13.5, fontWeight: 800, cursor: "pointer" }}>
+                  {credSubmitting ? "Updating..." : "Save Admin Credentials"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

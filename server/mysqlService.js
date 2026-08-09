@@ -2566,6 +2566,28 @@ export const mysqlService = {
       historyLogs: history.map(h => ({ status: h.status, notes: h.notes, location: h.location, timestamp: h.timestamp })),
     };
   },
+
+  async updateAdminCredentials(userId, email, newPassword = "") {
+    const p = getPool();
+    const [existing] = await p.query("SELECT * FROM users WHERE id = ?", [userId]);
+    if (!existing[0]) throw new Error("Admin account not found.");
+
+    const cleanEmail = email.trim().toLowerCase();
+    const [dup] = await p.query("SELECT id FROM users WHERE email = ? AND id != ?", [cleanEmail, userId]);
+    if (dup.length > 0) {
+      throw new Error("This email address is already registered to another user.");
+    }
+
+    if (newPassword && newPassword.trim().length > 0) {
+      const hash = await bcrypt.hash(newPassword.trim(), 10);
+      await p.query("UPDATE users SET email = ?, password_hash = ? WHERE id = ?", [cleanEmail, hash, userId]);
+    } else {
+      await p.query("UPDATE users SET email = ? WHERE id = ?", [cleanEmail, userId]);
+    }
+
+    const [updatedUser] = await p.query("SELECT id, role, name, email, phone, status FROM users WHERE id = ?", [userId]);
+    return updatedUser[0];
+  },
 };
 
 export default mysqlService;

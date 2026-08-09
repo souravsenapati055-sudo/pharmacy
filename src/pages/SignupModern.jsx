@@ -64,6 +64,10 @@ export default function SignupModern({ setUser }) {
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    if (role === "admin") {
+      setError("Admin accounts cannot be registered publicly. Please sign in with your authorized Admin email address.");
+      return;
+    }
     setError("");
     setStatusMessage("");
     setIsLoading(true);

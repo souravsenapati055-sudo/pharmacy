@@ -412,10 +412,16 @@ export default function Dashboard({
     ];
   }, [recentOrders]);
 
-  // Derived metrics
+  // Derived metrics - Revenue ONLY updated when product delivered successfully
   const totalRevenue = useMemo(() => {
     return (Array.isArray(recentOrders) ? recentOrders : []).reduce(
-      (sum, o) => sum + Number(o?.totalPrice || o?.total || 0),
+      (sum, o) => {
+        const s = (o?.deliveryStatus || o?.status || "").toLowerCase();
+        if (s === "delivered" || s === "completed") {
+          return sum + Number(o?.totalPrice || o?.total || 0);
+        }
+        return sum;
+      },
       0
     );
   }, [recentOrders]);
@@ -1360,6 +1366,72 @@ export default function Dashboard({
                       </tr>
                     ))
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ===== 5 LIVE DELIVERY DETAILS & DRIVER CONTROL SECTION ===== */}
+          <div className="dash-card border-top-primary" style={{ marginTop: 28 }}>
+            <div className="dash-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 className="dash-card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Truck size={18} color="#087ea4" /> Live Delivery Boys Overview & Delivery Controls
+                </h3>
+                <p className="dash-card-subtitle">5 active delivery partners, order assignments, and real-time status control</p>
+              </div>
+              <button className="btn-secondary" style={{ fontSize: 12.5 }} onClick={() => navigate("/admin/delivery")}>
+                Manage All Drivers →
+              </button>
+            </div>
+
+            <div className="table-responsive">
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th>Driver Name</th>
+                    <th>Phone Contact</th>
+                    <th>Active Orders</th>
+                    <th>Delivered Orders</th>
+                    <th>COD Collected</th>
+                    <th>Duty Status</th>
+                    <th>Admin Control Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { id: 1, name: "Amit Kumar", phone: "+91 98765 43210", active: 2, completed: 318, cod: "₹1,45,200", status: "On Duty" },
+                    { id: 2, name: "Vikram Singh", phone: "+91 98123 45678", active: 1, completed: 275, cod: "₹1,28,400", status: "Delivering" },
+                    { id: 3, name: "Rajesh Rao", phone: "+91 97654 32109", active: 0, completed: 228, cod: "₹98,500", status: "On Duty" },
+                    { id: 4, name: "Priya Nair", phone: "+91 96543 21098", active: 1, completed: 202, cod: "₹72,450", status: "Delivering" },
+                    { id: 5, name: "Suresh Patel", phone: "+91 95432 10987", active: 0, completed: 153, cod: "₹38,100", status: "On Duty" },
+                  ].map((dp) => (
+                    <tr key={dp.id}>
+                      <td>
+                        <strong style={{ color: "#0f172a" }}>{dp.name}</strong>
+                      </td>
+                      <td>
+                        <a href={`tel:${dp.phone}`} style={{ color: "#087ea4", textDecoration: "none", fontWeight: 600 }}>
+                          {dp.phone}
+                        </a>
+                      </td>
+                      <td><span className="badge badge-status-processing">{dp.active} Active</span></td>
+                      <td><strong style={{ color: "#16a34a" }}>{dp.completed} Completed</strong></td>
+                      <td><strong>{dp.cod}</strong></td>
+                      <td>
+                        <span className="badge badge-status-delivered">🟢 {dp.status}</span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn-action-small"
+                          style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" }}
+                          onClick={() => navigate("/admin/delivery")}
+                        >
+                          Track / Control
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

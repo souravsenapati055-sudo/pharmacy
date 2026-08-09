@@ -394,8 +394,11 @@ function buildAnalytics(range, baseData) {
     return acc;
   }, new Map());
 
-  const categoryData = Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value }));
-  const totalSales = orders.reduce((sum, order) => sum + Number(order.total), 0);
+  const deliveredOrders = orders.filter((order) => {
+    const s = (order.delivery_status || order.status || "").toLowerCase();
+    return s === "delivered" || s === "completed";
+  });
+  const totalSales = deliveredOrders.reduce((sum, order) => sum + Number(order.total), 0);
   const totalOrders = orders.length;
   const activeCustomers = new Set(orders.map((order) => order.user_id)).size;
 
@@ -949,6 +952,24 @@ app.patch("/api/admin/customers/:id/block", async (req, res) => {
   } catch (error) {
     console.error("Block customer error:", error);
     res.status(500).json({ message: "Unable to update customer status." });
+  }
+});
+
+app.post("/api/admin/update-credentials", async (req, res) => {
+  try {
+    const { userId, email, newPassword } = req.body;
+    if (!userId || !email) {
+      return res.status(400).json({ message: "Admin User ID and email address are required." });
+    }
+
+    const updatedUser = await mysqlService.updateAdminCredentials(userId, email, newPassword);
+    res.json({
+      message: "Admin login credentials updated successfully! You can now use this email to sign in.",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update admin credentials error:", error);
+    res.status(400).json({ message: error.message || "Failed to update admin credentials." });
   }
 });
 
