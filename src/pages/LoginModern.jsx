@@ -541,16 +541,27 @@ export default function LoginModern({ setUser }) {
           {isLoading ? "Verifying with Google..." : "Sign in with Google"}
         </button>
 
-        {/* Public Customer Sign Up Link */}
-        <div style={{ textAlign: "center", marginTop: 20, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
-          <span style={{ fontSize: 13, color: "#64748B" }}>Don't have a customer account? </span>
-          <Link
-            to="/signup/customer"
-            style={{ fontSize: 13, color: "#087EA4", fontWeight: 800, textDecoration: "none" }}
-          >
-            Create New Customer Account
-          </Link>
-        </div>
+        {isAdmin ? (
+          <div style={{ textAlign: "center", marginTop: 20, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
+            <span style={{ fontSize: 13, color: "#64748B" }}>Need delivery access? </span>
+            <Link
+              to="/login/delivery"
+              style={{ fontSize: 13, color: "#087EA4", fontWeight: 800, textDecoration: "none" }}
+            >
+              Login as Delivery Boy
+            </Link>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", marginTop: 20, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
+            <span style={{ fontSize: 13, color: "#64748B" }}>Don't have a customer account? </span>
+            <Link
+              to="/signup/customer"
+              style={{ fontSize: 13, color: "#087EA4", fontWeight: 800, textDecoration: "none" }}
+            >
+              Create New Customer Account
+            </Link>
+          </div>
+        )}
 
         {/* Enterprise Footer */}
         <div style={{ textAlign: "center", marginTop: 20, fontSize: 11.5, color: "#94A3B8", fontWeight: 600 }}>
