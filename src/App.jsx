@@ -372,9 +372,40 @@ function AppContent() {
         />
 
         {/* Delivery Partner Login & Dashboard Routes */}
-        <Route path="/login/delivery" element={<DeliveryLogin setUser={setUser} />} />
-        <Route path="/delivery/login" element={<DeliveryLogin setUser={setUser} />} />
-        <Route path="/delivery/dashboard" element={<DeliveryDashboard user={user} setUser={setUser} />} />
+        <Route path="/delivery" element={<Navigate to="/delivery/dashboard" replace />} />
+        <Route path="/delivery/portal" element={<Navigate to="/delivery/dashboard" replace />} />
+        <Route path="/delivery-portal" element={<Navigate to="/delivery/dashboard" replace />} />
+
+        <Route
+          path="/login/delivery"
+          element={
+            user && (String(user?.role || "").toLowerCase().includes("delivery") || user?.deliveryId) ? (
+              <Navigate to="/delivery/dashboard" replace />
+            ) : (
+              <DeliveryLogin setUser={setUser} />
+            )
+          }
+        />
+        <Route
+          path="/delivery/login"
+          element={
+            user && (String(user?.role || "").toLowerCase().includes("delivery") || user?.deliveryId) ? (
+              <Navigate to="/delivery/dashboard" replace />
+            ) : (
+              <DeliveryLogin setUser={setUser} />
+            )
+          }
+        />
+        <Route
+          path="/delivery/dashboard"
+          element={
+            user && (String(user?.role || "").toLowerCase().includes("delivery") || user?.deliveryId) ? (
+              <DeliveryDashboard user={user} setUser={setUser} />
+            ) : (
+              <DeliveryLogin setUser={setUser} />
+            )
+          }
+        />
 
         {/* Admin Delivery Management Route */}
         <Route path="/admin/delivery" element={renderAdminView(<AdminDeliveryManagement />)} />
