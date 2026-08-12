@@ -2241,6 +2241,14 @@ export const mysqlService = {
         AND delivery_status = 'DELIVERED'
     `, [partnerId]);
 
+    const [activeCountRows] = await p.query(`
+      SELECT COUNT(*) as active_count
+      FROM orders
+      WHERE delivery_partner_id = ?
+        AND delivery_status IN ('ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY')
+    `, [partnerId]);
+    const activeOrdersCount = Number(activeCountRows[0]?.active_count || 0);
+
     const partnerRow = await this.findDeliveryPartnerById(partnerId);
     const completedToday = Number(todayRows[0]?.completed_today || 0);
     const completedTotal = Number(overallRows[0]?.completed_total || partnerRow?.completed_order_count || 0);
@@ -2254,7 +2262,7 @@ export const mysqlService = {
     return {
       completedToday,
       completedTotal,
-      activeOrders: partnerRow?.active_order_count || 0,
+      activeOrders: activeOrdersCount,
       totalEarningsToday,
       totalEarningsOverall,
       isOnline: Boolean(partnerRow?.is_online),

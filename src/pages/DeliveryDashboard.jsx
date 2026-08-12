@@ -606,7 +606,7 @@ export default function DeliveryDashboard({ user, setUser }) {
                       <Truck size={16} />
                     </div>
                   </div>
-                  <div className="logistics-stat-value">{activeOrders.length || stats.activeOrders}</div>
+                  <div className="logistics-stat-value">{activeOrders.length}</div>
                   <div className="logistics-stat-trend neutral">In-progress</div>
                 </div>
 
