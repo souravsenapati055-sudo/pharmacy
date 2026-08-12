@@ -515,16 +515,16 @@ function OrderCard({ order, liveTimeline, onOpenInvoice, setOrders, refreshData 
       </div>
 
       {/* ─────────────────────────────────────────────
-          ULTRA-BEAUTIFUL DARK GLASSMORPHISM ROAD TRACK
+          LIGHT CLEAN MEDICAL THEME ROAD TRACK
          ───────────────────────────────────────────── */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)",
+          background: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
           borderRadius: 18,
           padding: "24px 28px 22px 28px",
-          border: "1px solid rgba(255,255,255,0.1)",
+          border: "1px solid #BAE6FD",
           position: "relative",
-          boxShadow: "0 14px 36px rgba(15,23,42,0.25)",
+          boxShadow: "0 8px 24px rgba(8, 126, 164, 0.08)",
           overflow: "hidden"
         }}
       >
@@ -533,27 +533,27 @@ function OrderCard({ order, liveTimeline, onOpenInvoice, setOrders, refreshData 
           style={{
             position: "absolute",
             inset: 0,
-            backgroundImage: "radial-gradient(rgba(56, 189, 248, 0.15) 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(rgba(8, 126, 164, 0.15) 1.2px, transparent 1.2px)",
             backgroundSize: "18px 18px",
             pointerEvents: "none"
           }}
         />
 
         {/* Status Tooltip Header above Scooter */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28, position: "relative", zIndex: 5 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 26, position: "relative", zIndex: 5 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: "#38BDF8", background: "rgba(56, 189, 248, 0.15)", border: "1px solid rgba(56, 189, 248, 0.3)", padding: "4px 12px", borderRadius: 999, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "#FFFFFF", background: "#087EA4", padding: "4px 12px", borderRadius: 999, textTransform: "uppercase", letterSpacing: "0.06em", boxShadow: "0 2px 8px rgba(8,126,164,0.3)" }}>
               📡 Live GPS Track Radar
             </span>
-            <span style={{ fontSize: 13, color: "#F1F5F9", fontWeight: 700 }}>
+            <span style={{ fontSize: 13.5, color: "#0F172A", fontWeight: 800 }}>
               {isDelivered ? "Delivered at doorstep 🎉" : isCancelled ? "Order cancelled by customer" : isMoving ? `Delivery partner ${partnerName || "courier"} is navigating live to your address! 🛵` : "Order being packed at central pharmacy warehouse"}
             </span>
           </div>
 
           {isMoving && !isCancelled && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)", padding: "4px 14px", borderRadius: 999 }}>
-              <Clock size={13} color="#FBBF24" />
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: "#FBBF24" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#FEF3C7", border: "1px solid #FDE68A", padding: "4px 14px", borderRadius: 999, boxShadow: "0 2px 6px rgba(217,119,6,0.15)" }}>
+              <Clock size={13} color="#D97706" />
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: "#D97706" }}>
                 ETA ~14 Mins
               </span>
             </div>
@@ -564,29 +564,29 @@ function OrderCard({ order, liveTimeline, onOpenInvoice, setOrders, refreshData 
         <div style={{ position: "relative", height: 80, marginTop: 14, display: "flex", alignItems: "center" }}>
           
           {/* Base Road Asphalt Surface */}
-          <div style={{ position: "absolute", left: 0, right: 0, height: 12, background: "#334155", borderRadius: 999, boxShadow: "inset 0 2px 4px rgba(0,0,0,0.5)", overflow: "hidden" }}>
-            {/* Glowing Neon Progress Fill */}
+          <div style={{ position: "absolute", left: 0, right: 0, height: 12, background: "#CBD5E1", borderRadius: 999, boxShadow: "inset 0 2px 4px rgba(0,0,0,0.1)", overflow: "hidden" }}>
+            {/* Glowing Progress Fill */}
             <div
               style={{
                 height: "100%",
                 width: isCancelled ? "0%" : `${percent}%`,
-                background: isDelivered ? "#22C55E" : "linear-gradient(90deg, #38BDF8 0%, #34D399 100%)",
+                background: isDelivered ? "linear-gradient(90deg, #16A34A 0%, #22C55E 100%)" : "linear-gradient(90deg, #087EA4 0%, #10B981 100%)",
                 borderRadius: 999,
-                boxShadow: isDelivered ? "0 0 16px #22C55E" : "0 0 16px #38BDF8",
+                boxShadow: isDelivered ? "0 0 12px rgba(34,197,94,0.4)" : "0 0 12px rgba(8,126,164,0.4)",
                 transition: "width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)"
               }}
             />
           </div>
 
           {/* Dotted Road Lane Divider Lines */}
-          <div style={{ position: "absolute", left: 0, right: 0, height: 2, borderTop: "2px dashed rgba(255,255,255,0.4)", pointerEvents: "none", animation: isMoving && !isCancelled ? "laneMove 0.8s linear infinite" : "none" }} />
+          <div style={{ position: "absolute", left: 0, right: 0, height: 2, borderTop: "2px dashed rgba(8, 126, 164, 0.35)", pointerEvents: "none", animation: isMoving && !isCancelled ? "laneMove 0.8s linear infinite" : "none" }} />
 
           {/* Moving Delivery Scooter Container */}
           {!isCancelled && (
             <div
               style={{
                 position: "absolute",
-                left: `calc(${percent}% - 31px)`,
+                left: `max(0px, min(calc(${percent}% - 31px), calc(100% - 62px)))`,
                 top: -18,
                 zIndex: 20,
                 transition: "left 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
@@ -615,7 +615,7 @@ function OrderCard({ order, liveTimeline, onOpenInvoice, setOrders, refreshData 
                         width: 42,
                         height: 42,
                         borderRadius: "50%",
-                        border: "2px solid #38BDF8",
+                        border: "2.5px solid #087EA4",
                         animation: "beaconRing 1.5s ease-out infinite",
                         pointerEvents: "none"
                       }}
@@ -627,15 +627,15 @@ function OrderCard({ order, liveTimeline, onOpenInvoice, setOrders, refreshData 
                       width: 26,
                       height: 26,
                       borderRadius: "50%",
-                      background: isReached ? (s.percent === 100 ? "#22C55E" : "#38BDF8") : "#1E293B",
-                      border: `3px solid ${isReached ? (s.percent === 100 ? "#4ADE80" : "#7DD3FC") : "#475569"}`,
-                      color: "#FFFFFF",
+                      background: isReached ? (s.percent === 100 ? "#16A34A" : "#087EA4") : "#FFFFFF",
+                      border: `3px solid ${isReached ? "#FFFFFF" : "#CBD5E1"}`,
+                      color: isReached ? "#FFFFFF" : "#64748B",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: 11,
                       fontWeight: 800,
-                      boxShadow: isReached ? "0 0 14px rgba(56,189,248,0.6)" : "none",
+                      boxShadow: isReached ? "0 4px 12px rgba(8,126,164,0.35)" : "0 2px 4px rgba(0,0,0,0.06)",
                       transition: "all 0.4s ease"
                     }}
                   >
@@ -655,11 +655,11 @@ function OrderCard({ order, liveTimeline, onOpenInvoice, setOrders, refreshData 
               <span
                 key={idx}
                 style={{
-                  fontSize: 11.5,
-                  fontWeight: isReached ? 800 : 500,
-                  color: isReached ? "#F8FAFC" : "#64748B",
+                  fontSize: 12,
+                  fontWeight: isReached ? 800 : 600,
+                  color: isReached ? "#0F172A" : "#64748B",
                   textAlign: "center",
-                  width: 72
+                  width: 76
                 }}
               >
                 {s.label}
