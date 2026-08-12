@@ -54,6 +54,7 @@ import {
   Settings as SettingsIcon,
   RefreshCw,
   Minus,
+  Phone,
 } from "lucide-react";
 import "./Dashboard.css";
 
