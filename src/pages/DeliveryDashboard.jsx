@@ -14,7 +14,7 @@ import {
   markDeliveryNotificationRead,
   fetchDeliveryEarnings,
 } from "../lib/store";
-import { clearAuthSession } from "../lib/auth";
+import { clearAuthSession, getStoredUser } from "../lib/auth";
 import {
   LayoutDashboard,
   Package,
@@ -52,7 +52,8 @@ import "./DeliveryDashboard.css";
 
 export default function DeliveryDashboard({ user, setUser }) {
   const navigate = useNavigate();
-  const partnerId = user?.id;
+  const currentUser = user || getStoredUser();
+  const partnerId = currentUser?.id;
 
   // Active view tab state: 'dashboard' | 'available' | 'active' | 'history' | 'earnings' | 'notifications' | 'profile' | 'help'
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -148,6 +149,10 @@ export default function DeliveryDashboard({ user, setUser }) {
   };
 
   useEffect(() => {
+    if (!partnerId) {
+      navigate("/delivery/login");
+      return;
+    }
     loadAllDashboardData();
     const interval = setInterval(() => {
       loadAllDashboardData();
