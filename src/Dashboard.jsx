@@ -55,6 +55,7 @@ import {
   RefreshCw,
   Minus,
   Phone,
+  ShieldCheck,
 } from "lucide-react";
 import "./Dashboard.css";
 
