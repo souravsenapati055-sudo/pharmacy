@@ -318,6 +318,7 @@ export default function DeliveryDashboard({ user, setUser }) {
     return null;
   };
 
+  const activeOrder = activeOrders[0] || null;
   const nextAction = activeOrder ? getNextActionConfig(activeOrder.deliveryStatus) : null;
 
   // Filter available orders
@@ -382,7 +383,7 @@ export default function DeliveryDashboard({ user, setUser }) {
             onClick={() => { setActiveTab("active"); setSidebarOpen(false); }}
           >
             <Truck size={18} /> Active Delivery
-            {activeOrder && <span className="logistics-nav-badge" style={{ background: "#16A34A" }}>1</span>}
+            {activeOrders.length > 0 && <span className="logistics-nav-badge" style={{ background: "#16A34A" }}>{activeOrders.length}</span>}
           </button>
 
           <button
@@ -605,7 +606,7 @@ export default function DeliveryDashboard({ user, setUser }) {
                       <Truck size={16} />
                     </div>
                   </div>
-                  <div className="logistics-stat-value">{activeOrder ? 1 : stats.activeOrders}</div>
+                  <div className="logistics-stat-value">{activeOrders.length || stats.activeOrders}</div>
                   <div className="logistics-stat-trend neutral">In-progress</div>
                 </div>
 
