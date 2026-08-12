@@ -13,13 +13,15 @@ import {
   PhoneCall,
   UserCheck,
   Sparkles,
-  FileText
+  FileText,
+  AlertTriangle,
+  RotateCcw
 } from "lucide-react";
-import { fetchOrderDeliveryTimeline } from "../lib/store";
+import { fetchOrderDeliveryTimeline, updateOrderStatus } from "../lib/store";
 import InvoiceModal from "../components/InvoiceModal";
 import "../customer.css";
 
-export default function Orders({ orders = [] }) {
+export default function Orders({ orders = [], setOrders, refreshData }) {
   const [activeTab, setActiveTab] = useState("all");
   const [liveOrdersMap, setLiveOrdersMap] = useState({});
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -65,6 +67,7 @@ export default function Orders({ orders = [] }) {
             if (orderId) {
               const liveData = await fetchOrderDeliveryTimeline(orderId);
               setLiveOrdersMap((prev) => ({ ...prev, [orderId]: liveData }));
+              if (refreshData) refreshData();
             }
           }
         } catch (err) {
@@ -78,7 +81,7 @@ export default function Orders({ orders = [] }) {
     return () => {
       eventSource?.close();
     };
-  }, []);
+  }, [refreshData]);
 
   const filterStatus = (tab) => {
     if (tab === "all") return orders;
@@ -103,7 +106,7 @@ export default function Orders({ orders = [] }) {
         <div className="section-header-wrap">
           <div>
             <h1 className="page-title">My Orders & Live Delivery Tracking</h1>
-            <p className="page-subtitle">Track ongoing package deliveries with real-time delivery boy updates.</p>
+            <p className="page-subtitle">Track ongoing package deliveries with live moving scooter animation.</p>
           </div>
         </div>
 
@@ -148,7 +151,14 @@ export default function Orders({ orders = [] }) {
           </div>
         ) : (
           displayedOrders.map((order) => (
-            <OrderCard key={order.id} order={order} liveTimeline={liveOrdersMap[order.id]} onOpenInvoice={setSelectedInvoice} />
+            <OrderCard
+              key={order.id}
+              order={order}
+              liveTimeline={liveOrdersMap[order.id]}
+              onOpenInvoice={setSelectedInvoice}
+              setOrders={setOrders}
+              refreshData={refreshData}
+            />
           ))
         )}
 
@@ -170,29 +180,109 @@ function getStatusPill(status) {
   return { bg: "#E0F2FE", color: "#0369A1", icon: <Clock size={14} />, label: "Order Placed (Open Pool)" };
 }
 
-function getTimelineIndex(status) {
+function getTimelinePercent(status) {
   const s = (status || "").toLowerCase();
-  if (s === "delivered") return 6;
-  if (s === "out_for_delivery" || s === "out for delivery") return 5;
-  if (s === "picked_up") return 4;
-  if (s === "accepted" || s === "assigned") return 3;
-  if (s === "confirmed") return 2;
-  return 1;
+  if (s === "delivered") return 100;
+  if (s === "out_for_delivery" || s === "out for delivery") return 80;
+  if (s === "picked_up") return 60;
+  if (s === "accepted" || s === "assigned") return 40;
+  if (s === "confirmed") return 20;
+  if (s === "cancelled") return 0;
+  return 5;
 }
 
-function OrderCard({ order, liveTimeline, onOpenInvoice }) {
+// ─────────────────────────────────────────────
+// ANIMATED SCOOTER VECTOR ICON COMPONENT
+// ─────────────────────────────────────────────
+function DeliveryScooterIcon({ isMoving, isCancelled }) {
+  return (
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      {/* Headlight Cone */}
+      {isMoving && !isCancelled && (
+        <div
+          style={{
+            position: "absolute",
+            top: 14,
+            right: -22,
+            width: 24,
+            height: 16,
+            background: "linear-gradient(90deg, rgba(253,224,71,0.85) 0%, rgba(253,224,71,0) 100%)",
+            clipPath: "polygon(0 35%, 100% 0, 100% 100%, 0 65%)",
+            zIndex: 1,
+            animation: "scooterBeam 0.6s ease-in-out infinite alternate"
+          }}
+        />
+      )}
+
+      {/* Speed Trails */}
+      {isMoving && !isCancelled && (
+        <div style={{ position: "absolute", top: 16, left: -18, display: "flex", flexDirection: "column", gap: 3, zIndex: 1 }}>
+          <div style={{ width: 14, height: 2, background: "#087EA4", borderRadius: 2, opacity: 0.8, animation: "trailDash 0.35s linear infinite" }} />
+          <div style={{ width: 18, height: 2.5, background: "#10B981", borderRadius: 2, opacity: 0.9, animation: "trailDash 0.3s linear infinite 0.1s" }} />
+          <div style={{ width: 10, height: 2, background: "#087EA4", borderRadius: 2, opacity: 0.7, animation: "trailDash 0.4s linear infinite 0.15s" }} />
+        </div>
+      )}
+
+      {/* Scooter Body Vector SVG */}
+      <svg
+        width="44"
+        height="38"
+        viewBox="0 0 54 48"
+        fill="none"
+        style={{
+          filter: isCancelled ? "grayscale(1)" : "drop-shadow(0 4px 10px rgba(8,126,164,0.4))",
+          animation: isMoving && !isCancelled ? "scooterRide 0.35s ease-in-out infinite alternate" : "none"
+        }}
+      >
+        {/* Delivery Cargo Box */}
+        <rect x="2" y="10" width="16" height="18" rx="3" fill="#087EA4" stroke="#0369A1" strokeWidth="1.5" />
+        <path d="M 7 19 L 13 19 M 10 16 L 10 22" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" />
+
+        {/* Chassis Frame */}
+        <path d="M 16 26 L 24 26 L 33 16 L 42 16" stroke="#087EA4" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M 22 26 L 36 34 L 44 34" stroke="#0F172A" strokeWidth="3" strokeLinecap="round" />
+
+        {/* Steering */}
+        <path d="M 40 16 L 42 8 L 46 8" stroke="#334155" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M 42 12 L 47 6" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+
+        {/* Seat Cushion */}
+        <path d="M 18 20 Q 24 18 28 22" stroke="#1E293B" strokeWidth="4" strokeLinecap="round" />
+
+        {/* Wheels */}
+        <g style={{ transformOrigin: "12px 36px", animation: isMoving && !isCancelled ? "wheelSpin 0.3s linear infinite" : "none" }}>
+          <circle cx="12" cy="36" r="8" fill="#1E293B" stroke="#64748B" strokeWidth="2" />
+          <circle cx="12" cy="36" r="3" fill="#94A3B8" />
+        </g>
+        <g style={{ transformOrigin: "42px 36px", animation: isMoving && !isCancelled ? "wheelSpin 0.3s linear infinite" : "none" }}>
+          <circle cx="42" cy="36" r="8" fill="#1E293B" stroke="#64748B" strokeWidth="2" />
+          <circle cx="42" cy="36" r="3" fill="#94A3B8" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+function OrderCard({ order, liveTimeline, onOpenInvoice, setOrders, refreshData }) {
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const currentStatus = liveTimeline?.deliveryStatus || order.deliveryStatus || order.status || "ORDER_PLACED";
   const { bg, color, icon, label } = getStatusPill(currentStatus);
   const items = order.items || [];
-  const currentStepIndex = getTimelineIndex(currentStatus);
+  const percent = getTimelinePercent(currentStatus);
+
+  const isCancelled = (currentStatus || "").toLowerCase() === "cancelled";
+  const isDelivered = (currentStatus || "").toLowerCase() === "delivered";
+  const isMoving = ["accepted", "assigned", "picked_up", "out_for_delivery", "out for delivery"].includes((currentStatus || "").toLowerCase());
+  const canCancel = !isDelivered && !isCancelled && !["picked_up", "out_for_delivery", "out for delivery"].includes((currentStatus || "").toLowerCase());
 
   const timelineSteps = [
-    { label: "Placed", step: 1 },
-    { label: "Confirmed", step: 2 },
-    { label: "Accepted", step: 3 },
-    { label: "Picked Up", step: 4 },
-    { label: "Out for Delivery", step: 5 },
-    { label: "Delivered", step: 6 },
+    { label: "Placed", percent: 0 },
+    { label: "Confirmed", percent: 20 },
+    { label: "Accepted", percent: 40 },
+    { label: "Picked Up", percent: 60 },
+    { label: "Out for Delivery", percent: 80 },
+    { label: "Delivered", percent: 100 },
   ];
 
   // Resolve Partner Info
@@ -204,8 +294,30 @@ function OrderCard({ order, liveTimeline, onOpenInvoice }) {
 
   const isAssigned = Boolean(partnerName && partnerName !== "Unassigned" && partnerName !== "undefined");
 
+  const handleCancelClick = async () => {
+    if (!window.confirm(`Are you sure you want to cancel Order #PC-${order.id}? Medicine stock will automatically be refunded to database inventory.`)) {
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      await updateOrderStatus(order.id, "Cancelled");
+      if (setOrders) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === order.id ? { ...o, status: "Cancelled", deliveryStatus: "CANCELLED" } : o))
+        );
+      }
+      if (refreshData) await refreshData();
+      alert(`Order #PC-${order.id} cancelled. Item stock has been updated in database.`);
+    } catch (err) {
+      alert(err.message || "Unable to cancel order right now.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   return (
-    <div className="order-card-container" style={{ marginBottom: 24 }}>
+    <div className="order-card-container" style={{ marginBottom: 28, background: "#FFFFFF", borderRadius: 16, border: "1px solid #E2E8F0", padding: "20px 24px", boxShadow: "0 4px 16px rgba(15,23,42,0.04)" }}>
       {/* Top Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -217,14 +329,40 @@ function OrderCard({ order, liveTimeline, onOpenInvoice }) {
           </span>
         </div>
 
-        <div style={{ fontSize: 13, color: "#64748B", display: "flex", alignItems: "center", gap: 6 }}>
-          <Calendar size={14} />
-          {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN") : "Recent"}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 13, color: "#64748B", display: "flex", alignItems: "center", gap: 6 }}>
+            <Calendar size={14} />
+            {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN") : "Recent"}
+          </div>
+
+          {/* Customer Cancel Button */}
+          {canCancel && (
+            <button
+              onClick={handleCancelClick}
+              disabled={isCancelling}
+              style={{
+                background: "#FEF2F2",
+                color: "#DC2626",
+                border: "1px solid #FCA5A5",
+                borderRadius: 8,
+                padding: "6px 14px",
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: isCancelling ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease"
+              }}
+            >
+              <RotateCcw size={13} /> {isCancelling ? "Cancelling..." : "Cancel Order"}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Items Summary & Meta */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, background: "#F8FAFC", padding: "16px 20px", borderRadius: 12, marginBottom: 16, border: "1px solid #E2E8F0" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, background: "#F8FAFC", padding: "16px 20px", borderRadius: 12, marginBottom: 24, border: "1px solid #E2E8F0" }}>
         <div>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Purchased Items</div>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", marginTop: 4 }}>
@@ -277,21 +415,138 @@ function OrderCard({ order, liveTimeline, onOpenInvoice }) {
         </div>
       </div>
 
-      {/* Real-time 6-Node Timeline Tracker */}
-      <div className="timeline-stepper">
-        {timelineSteps.map((s) => {
-          const isCompleted = currentStepIndex >= s.step;
-          const isActive = currentStepIndex === s.step;
-          return (
-            <div key={s.step} className={`timeline-step${isActive ? " active" : ""}${isCompleted ? " completed" : ""}`}>
-              <div className="timeline-node">
-                {isCompleted ? <CheckCircle2 size={16} /> : s.step}
-              </div>
-              <div className="timeline-label">{s.label}</div>
+      {/* ─────────────────────────────────────────────
+          INTERACTIVE ANIMATED DELIVERY SCOOTER TRACK
+         ───────────────────────────────────────────── */}
+      <div style={{ background: "#F1F5F9", borderRadius: 16, padding: "24px 28px 20px 28px", border: "1px solid #E2E8F0", position: "relative" }}>
+        
+        {/* Status Tooltip Header above Scooter */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#087EA4", background: "#E0F2FE", padding: "3px 10px", borderRadius: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Live Delivery Scooter Radar
+            </span>
+            <span style={{ fontSize: 12.5, color: "#475569", fontWeight: 600 }}>
+              {isDelivered ? "Delivered at doorstep 🎉" : isCancelled ? "Order cancelled by customer" : isMoving ? `Delivery boy ${partnerName || "courier"} is on route! 🛵` : "Order being processed at pharmacy warehouse"}
+            </span>
+          </div>
+          {isMoving && !isCancelled && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#D97706", background: "#FEF3C7", padding: "3px 10px", borderRadius: 6 }}>
+              ETA ~12 mins
+            </span>
+          )}
+        </div>
+
+        {/* Road Track Container */}
+        <div style={{ position: "relative", height: 68, marginTop: 10, display: "flex", alignItems: "center" }}>
+          
+          {/* Base Road Surface Line */}
+          <div style={{ position: "absolute", left: 0, right: 0, height: 8, background: "#CBD5E1", borderRadius: 999, overflow: "hidden" }}>
+            {/* Progress Fill Bar */}
+            <div
+              style={{
+                height: "100%",
+                width: isCancelled ? "0%" : `${percent}%`,
+                background: isDelivered ? "#16A34A" : "linear-gradient(90deg, #087EA4 0%, #10B981 100%)",
+                borderRadius: 999,
+                transition: "width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)"
+              }}
+            />
+          </div>
+
+          {/* Dotted Road Lane Markers */}
+          <div style={{ position: "absolute", left: 0, right: 0, height: 2, borderTop: "2px dashed #FFFFFF", opacity: 0.6, pointerEvents: "none" }} />
+
+          {/* Moving Delivery Scooter Container */}
+          {!isCancelled && (
+            <div
+              style={{
+                position: "absolute",
+                left: `calc(${percent}% - 22px)`,
+                top: -12,
+                zIndex: 10,
+                transition: "left 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center"
+              }}
+            >
+              <DeliveryScooterIcon isMoving={isMoving} isCancelled={isCancelled} />
             </div>
-          );
-        })}
+          )}
+
+          {/* Milestone Nodes */}
+          <div style={{ position: "absolute", left: 0, right: 0, display: "flex", justifyContent: "space-between", alignItems: "center", zIndex: 5, padding: "0 2px" }}>
+            {timelineSteps.map((s, idx) => {
+              const isReached = !isCancelled && percent >= s.percent;
+              const isCurrent = !isCancelled && percent === s.percent;
+              return (
+                <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      background: isReached ? (s.percent === 100 ? "#16A34A" : "#087EA4") : "#FFFFFF",
+                      border: `3px solid ${isReached ? (s.percent === 100 ? "#16A34A" : "#087EA4") : "#94A3B8"}`,
+                      color: "#FFFFFF",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 10,
+                      fontWeight: 800,
+                      boxShadow: isCurrent ? "0 0 0 4px rgba(8,126,164,0.25)" : "none",
+                      transition: "all 0.3s ease"
+                    }}
+                  >
+                    {isReached ? "✓" : idx + 1}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Milestone Labels Row */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, padding: "0 2px" }}>
+          {timelineSteps.map((s, idx) => {
+            const isReached = !isCancelled && percent >= s.percent;
+            return (
+              <span
+                key={idx}
+                style={{
+                  fontSize: 11,
+                  fontWeight: isReached ? 800 : 500,
+                  color: isReached ? "#0F172A" : "#94A3B8",
+                  textAlign: "center",
+                  width: 60
+                }}
+              >
+                {s.label}
+              </span>
+            );
+          })}
+        </div>
       </div>
+
+      <style>{`
+        @keyframes wheelSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes scooterRide {
+          from { transform: translateY(0px); }
+          to { transform: translateY(-3px); }
+        }
+        @keyframes scooterBeam {
+          from { opacity: 0.6; transform: scaleX(0.9); }
+          to { opacity: 1; transform: scaleX(1.1); }
+        }
+        @keyframes trailDash {
+          from { transform: translateX(0); opacity: 0.8; }
+          to { transform: translateX(-12px); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }

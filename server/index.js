@@ -1325,9 +1325,6 @@ app.post("/api/orders", async (req, res) => {
         quantity,
         total_price: lineTotal,
       });
-
-      // Deduct stock
-      await firestoreService.updateMedicineStock(medicine.id, medicine.stock - quantity);
     }
 
     const deliveryFee = normalizedItems.length > 0 ? 7 : 0;
@@ -1390,6 +1387,16 @@ app.patch("/api/orders/:id/status", async (req, res) => {
     const updatedOrder = await firestoreService.updateOrderStatus(id, status);
     if (!updatedOrder) {
       return res.status(404).json({ message: "Order not found." });
+    }
+
+    try {
+      broadcastDeliveryEvent("DELIVERY_STATUS_CHANGED", {
+        orderId: Number(id),
+        status,
+        deliveryStatus: status === "Cancelled" ? "CANCELLED" : status
+      });
+    } catch (e) {
+      console.warn("SSE broadcast error:", e);
     }
 
     res.json({

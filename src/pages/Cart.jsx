@@ -61,8 +61,9 @@ export default function Cart({
   deliveryPeople,
   setDeliveryPeople,
   addToCart,
-  medicines,
+  medicines = [],
   setMedicines,
+  refreshData,
 }) {
   const navigate = useNavigate();
 
@@ -185,7 +186,7 @@ export default function Cart({
   };
 
   // ─────────────────────────────────────────────
-  // PLACE ORDER & EXECUTE RAZORPAY GATEWAY CHECKOUT
+  // PLACE ORDER & EXECUTE GATEWAY CHECKOUT
   // ─────────────────────────────────────────────
   const handlePlaceOrder = async () => {
     const currentUser = JSON.parse(localStorage.getItem("user")) || {};
@@ -193,6 +194,16 @@ export default function Cart({
       alert("Please sign in before completing checkout.");
       navigate("/login/customer");
       return;
+    }
+
+    // Pre-checkout stock check against database state
+    for (const item of cart) {
+      const dbMed = medicines.find((m) => m.id === item.id);
+      const availableStock = dbMed ? Number(dbMed.stock) : Number(item.stock || 0);
+      if (availableStock < (item.qty || 1)) {
+        alert(`Not enough stock available for ${item.name || dbMed?.name || "medicine"}. Available stock: ${availableStock} units.`);
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -215,7 +226,7 @@ export default function Cart({
       // Handle Cash on Delivery (COD)
       if (paymentMethod === "cod") {
         setProcessingStatusText("Confirming Cash on Delivery Order...");
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 800));
 
         // Update local app state
         setOrders((prev) => [createdOrder, ...(prev || [])]);
@@ -228,6 +239,8 @@ export default function Cart({
           paymentStatus: "COD Pending",
         });
         setIsProcessing(false);
+
+        if (refreshData) refreshData();
         return;
       }
 

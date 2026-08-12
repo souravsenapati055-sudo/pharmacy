@@ -1793,23 +1793,43 @@ export const mysqlService = {
     const oldStatus = existingRows[0].status;
     const partnerId = existingRows[0].delivery_partner_id;
 
-    await p.query("UPDATE orders SET status = ? WHERE id = ?", [status, orderId]);
+    const isCancelling = (status.toLowerCase() === "cancelled" || status.toLowerCase() === "canceled");
+    const newStatusStr = isCancelling ? "Cancelled" : status;
 
-    if (partnerId) {
-      if (oldStatus !== "Delivered" && status === "Delivered") {
-        await p.query(
-          `UPDATE delivery_partners 
-           SET active_order_count = GREATEST(0, active_order_count - 1), 
-               completed_order_count = completed_order_count + 1 
-           WHERE id = ?`,
-          [partnerId]
-        );
-      } else if (oldStatus !== "Cancelled" && status === "Cancelled") {
+    if (isCancelling) {
+      await p.query("UPDATE orders SET status = 'Cancelled', delivery_status = 'CANCELLED' WHERE id = ?", [orderId]);
+    } else {
+      await p.query("UPDATE orders SET status = ? WHERE id = ?", [newStatusStr, orderId]);
+    }
+
+    if (isCancelling && oldStatus !== "Cancelled") {
+      // Refund item count back to medicine inventory database
+      const [orderItems] = await p.query(
+        "SELECT medicine_id, quantity FROM order_items WHERE order_id = ?",
+        [orderId]
+      );
+      for (const item of orderItems) {
+        if (item.medicine_id && Number(item.quantity) > 0) {
+          await p.query("UPDATE medicines SET stock = stock + ? WHERE id = ?", [
+            Number(item.quantity),
+            item.medicine_id,
+          ]);
+        }
+      }
+      if (partnerId) {
         await p.query(
           `UPDATE delivery_partners SET active_order_count = GREATEST(0, active_order_count - 1) WHERE id = ?`,
           [partnerId]
         );
       }
+    } else if (partnerId && oldStatus !== "Delivered" && status === "Delivered") {
+      await p.query(
+        `UPDATE delivery_partners 
+         SET active_order_count = GREATEST(0, active_order_count - 1), 
+             completed_order_count = completed_order_count + 1 
+         WHERE id = ?`,
+        [partnerId]
+      );
     }
 
     const allOrders = await this.getOrders();
@@ -2406,12 +2426,12 @@ export const mysqlService = {
 
     // Strict Backend State Machine Validation
     const allowedTransitions = {
-      'ORDER_PLACED': ['CONFIRMED', 'ASSIGNED', 'ACCEPTED'],
-      'CONFIRMED': ['ASSIGNED', 'ACCEPTED'],
-      'ASSIGNED': ['ACCEPTED'],
-      'ACCEPTED': ['PICKED_UP'],
-      'PICKED_UP': ['OUT_FOR_DELIVERY'],
-      'OUT_FOR_DELIVERY': ['DELIVERED'],
+      'ORDER_PLACED': ['CONFIRMED', 'ASSIGNED', 'ACCEPTED', 'CANCELLED'],
+      'CONFIRMED': ['ASSIGNED', 'ACCEPTED', 'CANCELLED'],
+      'ASSIGNED': ['ACCEPTED', 'CANCELLED'],
+      'ACCEPTED': ['PICKED_UP', 'CANCELLED'],
+      'PICKED_UP': ['OUT_FOR_DELIVERY', 'CANCELLED'],
+      'OUT_FOR_DELIVERY': ['DELIVERED', 'CANCELLED'],
     };
 
     if (!allowedTransitions[currentStatus] || !allowedTransitions[currentStatus].includes(newStatus)) {
@@ -2434,6 +2454,23 @@ export const mysqlService = {
         [partnerId]
       );
       await p.query("UPDATE orders SET status = 'Delivered', payment_status = 'paid' WHERE id = ?", [orderId]);
+    } else if (newStatus === 'CANCELLED') {
+      await p.query("UPDATE orders SET status = 'Cancelled' WHERE id = ?", [orderId]);
+      if (partnerId) {
+        await p.query(
+          "UPDATE delivery_partners SET active_order_count = GREATEST(0, active_order_count - 1) WHERE id = ?",
+          [partnerId]
+        );
+      }
+      if (orderRows[0].status !== 'Cancelled') {
+        // Refund medicine stock
+        const [orderItems] = await p.query("SELECT medicine_id, quantity FROM order_items WHERE order_id = ?", [orderId]);
+        for (const item of orderItems) {
+          if (item.medicine_id && Number(item.quantity) > 0) {
+            await p.query("UPDATE medicines SET stock = stock + ? WHERE id = ?", [Number(item.quantity), item.medicine_id]);
+          }
+        }
+      }
     }
 
     await p.query(

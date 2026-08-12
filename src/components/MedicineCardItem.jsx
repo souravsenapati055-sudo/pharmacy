@@ -60,6 +60,15 @@ export default function MedicineCardItem({
     }
   };
 
+  const [isJustClicked, setIsJustClicked] = useState(false);
+
+  const handleAddClick = () => {
+    if (isOutOfStock || !onAddToCart) return;
+    setIsJustClicked(true);
+    onAddToCart(medicine);
+    setTimeout(() => setIsJustClicked(false), 1200);
+  };
+
   return (
     <div className="redesigned-medicine-card">
       {/* Top Header Row */}
@@ -178,15 +187,15 @@ export default function MedicineCardItem({
           </div>
         ) : (
           <button
-            className={`btn-customer-add ${isAdded ? "added" : ""}`}
+            className={`btn-customer-add ${isAdded || isJustClicked ? "added pulse-anim" : ""}`}
             disabled={isOutOfStock}
-            onClick={() => !isOutOfStock && onAddToCart && onAddToCart(medicine)}
+            onClick={handleAddClick}
           >
             {isOutOfStock ? (
               "Out of Stock"
-            ) : isAdded ? (
+            ) : isAdded || isJustClicked ? (
               <>
-                <Check size={14} /> Added to Cart
+                <Check size={14} className="check-icon-anim" /> Added to Cart!
               </>
             ) : (
               <>

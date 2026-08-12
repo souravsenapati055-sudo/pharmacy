@@ -112,21 +112,70 @@ function AppContent() {
     };
   }, [user]);
 
-  // Add to cart
-  const addToCart = (m) => {
-    const idx = cart.findIndex(item => item.id === m.id);
-    let updated;
+  const [toastMessage, setToastMessage] = useState(null);
 
-    if (idx !== -1) {
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  const refreshMedicinesAndOrders = async () => {
+    try {
+      const updatedMeds = await fetchMedicines();
+      if (Array.isArray(updatedMeds)) setMedicines(updatedMeds);
+      if (user?.id) {
+        const updatedOrders = await fetchOrders(user.id);
+        if (Array.isArray(updatedOrders)) setOrders(updatedOrders);
+      }
+    } catch (e) {
+      console.warn("Failed to refresh app data:", e);
+    }
+  };
+
+  // Add to cart with stock validation & micro-feedback
+  const addToCart = (m, qtyToAdd = 1) => {
+    const stock = Number(m.stock || 0);
+    const existingIndex = cart.findIndex(item => item.id === m.id);
+    const currentQtyInCart = existingIndex !== -1 ? (cart[existingIndex].qty || 1) : 0;
+
+    if (stock < 1) {
+      setToastMessage({
+        type: "error",
+        title: "Out of Stock",
+        text: `${m.name} is currently out of stock.`
+      });
+      return false;
+    }
+
+    if (currentQtyInCart + qtyToAdd > stock) {
+      setToastMessage({
+        type: "warning",
+        title: "Stock Limit Reached",
+        text: `Only ${stock} unit(s) available for ${m.name}.`
+      });
+      return false;
+    }
+
+    let updated;
+    if (existingIndex !== -1) {
       updated = cart.map((item, i) =>
-        i === idx ? { ...item, qty: (item.qty || 1) + 1 } : item
+        i === existingIndex ? { ...item, qty: (item.qty || 1) + qtyToAdd } : item
       );
     } else {
-      updated = [...cart, { ...m, qty: 1 }];
+      updated = [...cart, { ...m, qty: qtyToAdd }];
     }
 
     setCart(updated);
     localStorage.setItem("cart", JSON.stringify(updated));
+
+    setToastMessage({
+      type: "success",
+      title: "Added to Cart!",
+      text: `${m.name} added to your cart.`
+    });
+    return true;
   };
 
   // Remove from cart
@@ -226,6 +275,7 @@ function AppContent() {
                 setDeliveryPeople={setDeliveryPeople}
                 addToCart={addToCart}
                 removeFromCart={removeFromCart}
+                refreshData={refreshMedicinesAndOrders}
               />
             </ProtectedRoute>
           }
@@ -235,7 +285,7 @@ function AppContent() {
           path="/orders"
           element={
             <ProtectedRoute user={user}>
-              <Orders orders={orders} setOrders={setOrders} deliveryPeople={deliveryPeople} />
+              <Orders orders={orders} setOrders={setOrders} deliveryPeople={deliveryPeople} refreshData={refreshMedicinesAndOrders} />
             </ProtectedRoute>
           }
         />
@@ -312,7 +362,7 @@ function AppContent() {
         {/* Admin Emergency Order Route */}
         <Route
           path="/admin/emergency-order"
-          element={renderAdminView(<EmergencyOrder medicines={medicines} />)}
+          element={renderAdminView(<EmergencyOrder />)}
         />
 
         {/* Admin Generate Report Route */}
@@ -340,7 +390,75 @@ function AppContent() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
+      {/* Floating Add to Cart & Status Toast Notification */}
+      {toastMessage && (
+        <div style={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          zIndex: 9999,
+          background: toastMessage.type === "error" ? "#FEF2F2" : toastMessage.type === "warning" ? "#FFFBEB" : "#F0FDF4",
+          border: `1.5px solid ${toastMessage.type === "error" ? "#FCA5A5" : toastMessage.type === "warning" ? "#FCD34D" : "#86EFAC"}`,
+          borderRadius: 14,
+          padding: "14px 20px",
+          boxShadow: "0 12px 32px rgba(15,23,42,0.18)",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          maxWidth: 380,
+          animation: "toastSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards"
+        }}>
+          <div style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            background: toastMessage.type === "error" ? "#DC2626" : toastMessage.type === "warning" ? "#D97706" : "#16A34A",
+            color: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0
+          }}>
+            {toastMessage.type === "error" ? "❌" : toastMessage.type === "warning" ? "⚠️" : "🛒"}
+          </div>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" }}>{toastMessage.title}</h4>
+            <p style={{ margin: "2px 0 0 0", fontSize: 12.5, color: "#475569" }}>{toastMessage.text}</p>
+          </div>
+          {toastMessage.type === "success" && (
+            <a
+              href="/cart"
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#087EA4",
+                background: "#E0F2FE",
+                padding: "6px 12px",
+                borderRadius: 8,
+                textDecoration: "none",
+                whiteSpace: "nowrap"
+              }}
+            >
+              View Cart →
+            </a>
+          )}
+          <button
+            onClick={() => setToastMessage(null)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", fontSize: 16 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {user && !hideNavbar && <Footer />}
+
+      <style>{`
+        @keyframes toastSlideUp {
+          from { opacity: 0; transform: translateY(20px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
     </>
   );
 }
