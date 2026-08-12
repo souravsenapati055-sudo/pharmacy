@@ -2324,7 +2324,7 @@ export const mysqlService = {
     return result;
   },
 
-  async getActiveDeliveryOrder(partnerId) {
+  async getActiveDeliveryOrders(partnerId) {
     const p = getPool();
     const [rows] = await p.query(`
       SELECT 
@@ -2345,40 +2345,41 @@ export const mysqlService = {
         o.assigned_at,
         o.accepted_at,
         o.picked_up_at,
-        o.out_for_delivery_at,
-        COUNT(oi.id) as item_count
+        o.out_for_delivery_at
       FROM orders o
       JOIN users u ON o.user_id = u.id
-      LEFT JOIN order_items oi ON o.id = oi.order_id
       WHERE o.delivery_partner_id = ?
         AND o.delivery_status IN ('ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY')
-      GROUP BY o.id
       ORDER BY o.id DESC
-      LIMIT 1
     `, [partnerId]);
 
-    if (!rows[0]) return null;
-    const r = rows[0];
+    const result = [];
+    for (const r of rows) {
+      const [items] = await p.query("SELECT * FROM order_items WHERE order_id = ?", [r.id]);
+      result.push({
+        id: r.id,
+        orderIdFormatted: `PC${10000 + Number(r.id)}`,
+        customerName: r.customer_name,
+        customerPhone: r.customer_phone,
+        deliveryAddress: `${r.address_label}: ${r.address_details}`,
+        itemsCount: items.length,
+        items: items.map(i => ({ medicineName: i.medicine_name, quantity: i.quantity, totalPrice: Number(i.total_price) })),
+        totalAmount: Number(r.total || 0),
+        paymentMethod: r.payment_method,
+        paymentStatus: r.payment_status,
+        deliveryStatus: r.delivery_status,
+        createdAt: r.created_at,
+        acceptedAt: r.accepted_at,
+        pickedUpAt: r.picked_up_at,
+        outForDeliveryAt: r.out_for_delivery_at,
+      });
+    }
+    return result;
+  },
 
-    const [items] = await p.query("SELECT * FROM order_items WHERE order_id = ?", [r.id]);
-
-    return {
-      id: r.id,
-      orderIdFormatted: `PC${10000 + Number(r.id)}`,
-      customerName: r.customer_name,
-      customerPhone: r.customer_phone,
-      deliveryAddress: `${r.address_label}: ${r.address_details}`,
-      itemsCount: Number(r.item_count || items.length),
-      items: items.map(i => ({ medicineName: i.medicine_name, quantity: i.quantity, totalPrice: Number(i.total_price) })),
-      totalAmount: Number(r.total || 0),
-      paymentMethod: r.payment_method,
-      paymentStatus: r.payment_status,
-      deliveryStatus: r.delivery_status,
-      createdAt: r.created_at,
-      acceptedAt: r.accepted_at,
-      pickedUpAt: r.picked_up_at,
-      outForDeliveryAt: r.out_for_delivery_at,
-    };
+  async getActiveDeliveryOrder(partnerId) {
+    const orders = await this.getActiveDeliveryOrders(partnerId);
+    return orders[0] || null;
   },
 
   async acceptDeliveryOrderAtomic(orderId, partnerId) {

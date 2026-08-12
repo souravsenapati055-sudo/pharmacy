@@ -319,10 +319,24 @@ export function acceptDeliveryOrder(orderId, partnerId) {
   });
 }
 
+export function batchAcceptDeliveryOrders(orderIds, partnerId) {
+  return apiRequest("/delivery/orders/batch-accept", {
+    method: "POST",
+    body: JSON.stringify({ orderIds, partnerId }),
+  });
+}
+
 export function updateDeliveryOrderStatus(orderId, partnerId, status, notes = "", location = "") {
   return apiRequest(`/delivery/orders/${orderId}/status`, {
     method: "POST",
     body: JSON.stringify({ partnerId, status, notes, location }),
+  });
+}
+
+export function batchUpdateDeliveryOrderStatus(orderIds, partnerId, status, notes = "", location = "") {
+  return apiRequest("/delivery/orders/batch-status", {
+    method: "POST",
+    body: JSON.stringify({ orderIds, partnerId, status, notes, location }),
   });
 }
 

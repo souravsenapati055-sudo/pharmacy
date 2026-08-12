@@ -2695,11 +2695,76 @@ app.get("/api/delivery/orders/active", async (req, res) => {
     const partnerId = req.query.partnerId;
     if (!partnerId) return res.status(400).json({ message: "Partner ID required." });
 
-    const activeOrder = await mysqlService.getActiveDeliveryOrder(partnerId);
-    res.json(activeOrder);
+    const activeOrders = await mysqlService.getActiveDeliveryOrders(partnerId);
+    res.json({ activeOrders, activeOrder: activeOrders[0] || null });
   } catch (error) {
     console.error("Fetch active delivery order error:", error);
     res.status(500).json({ message: "Failed to fetch active delivery order." });
+  }
+});
+
+app.post("/api/delivery/orders/batch-accept", async (req, res) => {
+  try {
+    const { partnerId, orderIds = [] } = req.body;
+    if (!partnerId || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ message: "Partner ID and list of order IDs required." });
+    }
+
+    const acceptedOrders = [];
+    const errors = [];
+
+    for (const orderId of orderIds) {
+      try {
+        await mysqlService.acceptDeliveryOrderAtomic(orderId, partnerId);
+        broadcastDeliveryEvent("ORDER_ACCEPTED", { orderId: Number(orderId), partnerId, status: "ACCEPTED" });
+        acceptedOrders.push(orderId);
+      } catch (err) {
+        errors.push({ orderId, message: err.message });
+      }
+    }
+
+    const currentActiveOrders = await mysqlService.getActiveDeliveryOrders(partnerId);
+
+    res.json({
+      message: `Successfully accepted ${acceptedOrders.length} order(s).`,
+      acceptedOrders,
+      errors,
+      activeOrders: currentActiveOrders
+    });
+  } catch (error) {
+    console.error("Batch accept orders error:", error);
+    res.status(500).json({ message: error.message || "Failed to batch accept orders." });
+  }
+});
+
+app.post("/api/delivery/orders/batch-status", async (req, res) => {
+  try {
+    const { partnerId, orderIds = [], status, notes = "", location = "" } = req.body;
+    if (!partnerId || !Array.isArray(orderIds) || orderIds.length === 0 || !status) {
+      return res.status(400).json({ message: "Partner ID, valid order IDs, and status are required." });
+    }
+
+    const updated = [];
+    const failed = [];
+
+    for (const orderId of orderIds) {
+      try {
+        const result = await mysqlService.updateDeliveryOrderStatus(orderId, partnerId, status, notes, location);
+        broadcastDeliveryEvent("DELIVERY_STATUS_CHANGED", { orderId: Number(orderId), partnerId, status });
+        updated.push(orderId);
+      } catch (err) {
+        failed.push({ orderId, message: err.message });
+      }
+    }
+
+    res.json({
+      message: `Status updated to ${status} for ${updated.length} order(s).`,
+      updated,
+      failed
+    });
+  } catch (error) {
+    console.error("Batch status update error:", error);
+    res.status(500).json({ message: error.message || "Failed to batch update order status." });
   }
 });
 

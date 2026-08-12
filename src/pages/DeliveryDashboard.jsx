@@ -5,7 +5,9 @@ import {
   fetchAvailableDeliveryOrders,
   fetchActiveDeliveryOrder,
   acceptDeliveryOrder,
+  batchAcceptDeliveryOrders,
   updateDeliveryOrderStatus,
+  batchUpdateDeliveryOrderStatus,
   fetchDeliveryStats,
   fetchDeliveryHistory,
   fetchDeliveryNotifications,
@@ -42,6 +44,9 @@ import {
   Filter,
   ArrowRight,
   RefreshCw,
+  CheckSquare,
+  Square,
+  Zap,
 } from "lucide-react";
 import "./DeliveryDashboard.css";
 
@@ -55,8 +60,11 @@ export default function DeliveryDashboard({ user, setUser }) {
 
   // Core delivery state
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? true);
-  const [activeOrder, setActiveOrder] = useState(null);
+  const [activeOrders, setActiveOrders] = useState([]);
   const [availableOrders, setAvailableOrders] = useState([]);
+  const [selectedActiveIds, setSelectedActiveIds] = useState([]);
+  const [selectedAvailableIds, setSelectedAvailableIds] = useState([]);
+
   const [stats, setStats] = useState({
     completedToday: 0,
     completedTotal: 0,
@@ -111,7 +119,7 @@ export default function DeliveryDashboard({ user, setUser }) {
     if (!partnerId) return;
     setLoading(true);
     try {
-      const [active, available, statsData, historyData, notifData, earnData] = await Promise.all([
+      const [activeData, available, statsData, historyData, notifData, earnData] = await Promise.all([
         fetchActiveDeliveryOrder(partnerId),
         fetchAvailableDeliveryOrders(),
         fetchDeliveryStats(partnerId),
@@ -120,7 +128,9 @@ export default function DeliveryDashboard({ user, setUser }) {
         fetchDeliveryEarnings(partnerId),
       ]);
 
-      setActiveOrder(active);
+      const activeList = activeData?.activeOrders || (activeData?.id ? [activeData] : Array.isArray(activeData) ? activeData : []);
+      setActiveOrders(activeList);
+
       setAvailableOrders(Array.isArray(available) ? available : []);
       if (statsData) setStats(statsData);
       if (Array.isArray(historyData)) setHistoryOrders(historyData);
@@ -167,7 +177,7 @@ export default function DeliveryDashboard({ user, setUser }) {
       showToast(res.message || "Order Accepted Successfully!");
       setSelectedOrderDetails(null);
       loadAllDashboardData();
-      setActiveTab("dashboard");
+      setActiveTab("active");
     } catch (err) {
       showError(err?.message || "This order has already been accepted by another delivery partner.");
     } finally {
@@ -175,12 +185,74 @@ export default function DeliveryDashboard({ user, setUser }) {
     }
   };
 
+  const handleBatchAcceptOrders = async () => {
+    if (selectedAvailableIds.length === 0) return;
+    setActionLoading(true);
+    try {
+      const res = await batchAcceptDeliveryOrders(selectedAvailableIds, partnerId);
+      showToast(res.message || `Accepted ${selectedAvailableIds.length} orders successfully!`);
+      setSelectedAvailableIds([]);
+      await loadAllDashboardData();
+      setActiveTab("active");
+    } catch (err) {
+      showError(err?.message || "Failed to batch accept orders.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBatchStatusUpdate = async (targetStatus) => {
+    if (selectedActiveIds.length === 0) {
+      showError("Please select at least one active order using checkboxes.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await batchUpdateDeliveryOrderStatus(selectedActiveIds, partnerId, targetStatus);
+      showToast(res.message || `Updated status to ${targetStatus} for ${selectedActiveIds.length} order(s)!`);
+      setSelectedActiveIds([]);
+      await loadAllDashboardData();
+    } catch (err) {
+      showError(err?.message || "Failed to update status for selected orders.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const toggleSelectActiveOrder = (id) => {
+    setSelectedActiveIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllActive = () => {
+    if (selectedActiveIds.length === activeOrders.length) {
+      setSelectedActiveIds([]);
+    } else {
+      setSelectedActiveIds(activeOrders.map((o) => o.id));
+    }
+  };
+
+  const toggleSelectAvailableOrder = (id) => {
+    setSelectedAvailableIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllAvailable = () => {
+    if (selectedAvailableIds.length === availableOrders.length) {
+      setSelectedAvailableIds([]);
+    } else {
+      setSelectedAvailableIds(availableOrders.map((o) => o.id));
+    }
+  };
+
   const handleConfirmStatusChange = async () => {
-    if (!confirmModal || !activeOrder) return;
+    if (!confirmModal) return;
     setActionLoading(true);
     try {
       const res = await updateDeliveryOrderStatus(
-        activeOrder.id,
+        confirmModal.orderId,
         partnerId,
         confirmModal.nextStatus,
         `Status updated to ${confirmModal.nextStatus} by ${user?.name || "Delivery Partner"}`
@@ -580,148 +652,259 @@ export default function DeliveryDashboard({ user, setUser }) {
               </div>
 
               {/* ─────────────────────────────────────────────────────────────
-                  ACTIVE DELIVERY — MOST IMPORTANT HERO SECTION
+                  ACTIVE DELIVERIES — MULTI-ORDER BATCH CONTROLLER
                   ───────────────────────────────────────────────────────────── */}
-              {activeOrder ? (
-                <div className="logistics-active-hero-card">
-                  <div className="logistics-active-header">
-                    <div className="logistics-order-id-badge">
-                      <span className="logistics-active-tag">CURRENT DELIVERY</span>
-                      <h2 className="logistics-active-order-title">
-                        Order #{activeOrder.orderIdFormatted}
-                      </h2>
-                    </div>
-
-                    <span style={{ padding: "5px 14px", background: "#DCFCE7", color: "#166534", borderRadius: 20, fontSize: 12.5, fontWeight: 800 }}>
-                      {activeOrder.deliveryStatus}
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0F172A", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                      <Truck size={22} color="#087EA4" /> Active Deliveries ({activeOrders.length})
+                    </h2>
+                    <span style={{ fontSize: 12, fontWeight: 800, background: "#DCFCE7", color: "#166534", padding: "4px 10px", borderRadius: 999 }}>
+                      Multi-Accept Mode Enabled
                     </span>
                   </div>
 
-                  <div className="logistics-active-grid">
-                    {/* Customer Info Box */}
-                    <div className="logistics-customer-info-box">
-                      <div className="logistics-customer-name">
-                        Rahul Sharma ({activeOrder.customerName})
-                      </div>
-                      <div className="logistics-info-row">
-                        <Phone size={15} color="#087EA4" /> <strong>Phone:</strong> {activeOrder.customerPhone}
-                      </div>
-                      <div className="logistics-info-row">
-                        <MapPin size={15} color="#087EA4" /> <strong>Delivery Address:</strong> {activeOrder.deliveryAddress}
-                      </div>
-                    </div>
-
-                    {/* Metrics Box */}
-                    <div className="logistics-order-metrics-box">
-                      <div className="logistics-metric-row">
-                        <span style={{ color: "#64748B" }}>Order Amount:</span>
-                        <strong style={{ fontSize: 15, color: "#16A34A" }}>₹{activeOrder.totalAmount}</strong>
-                      </div>
-                      <div className="logistics-metric-row">
-                        <span style={{ color: "#64748B" }}>Payment:</span>
-                        <strong>{activeOrder.paymentMethod === "COD" ? "Cash on Delivery" : "Paid Online"}</strong>
-                      </div>
-                      <div className="logistics-metric-row">
-                        <span style={{ color: "#64748B" }}>Distance:</span>
-                        <strong>2.4 km</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* DELIVERY PROGRESS STEPPER */}
-                  <div className="logistics-stepper-container">
-                    <div className="logistics-stepper-title">DELIVERY PROGRESS</div>
-                    <div className="logistics-stepper">
-                      <div className="logistics-stepper-line" />
-
-                      {/* Step 1: Accepted */}
-                      <div className="logistics-step-node">
-                        <div className="logistics-node-circle done">✓</div>
-                        <span className="logistics-node-label active">Accepted</span>
-                      </div>
-
-                      {/* Step 2: Picked Up */}
-                      <div className="logistics-step-node">
-                        <div className={`logistics-node-circle ${["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(activeOrder.deliveryStatus) ? "done" : activeOrder.deliveryStatus === "ACCEPTED" ? "current" : "pending"}`}>
-                          {["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(activeOrder.deliveryStatus) ? "✓" : "2"}
-                        </div>
-                        <span className={`logistics-node-label ${["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"].includes(activeOrder.deliveryStatus) ? "active" : ""}`}>Picked Up</span>
-                      </div>
-
-                      {/* Step 3: Out for Delivery */}
-                      <div className="logistics-step-node">
-                        <div className={`logistics-node-circle ${["OUT_FOR_DELIVERY", "DELIVERED"].includes(activeOrder.deliveryStatus) ? "done" : activeOrder.deliveryStatus === "PICKED_UP" ? "current" : "pending"}`}>
-                          {["OUT_FOR_DELIVERY", "DELIVERED"].includes(activeOrder.deliveryStatus) ? "✓" : "3"}
-                        </div>
-                        <span className={`logistics-node-label ${["OUT_FOR_DELIVERY", "DELIVERED"].includes(activeOrder.deliveryStatus) ? "active" : ""}`}>Out for Delivery</span>
-                      </div>
-
-                      {/* Step 4: Delivered */}
-                      <div className="logistics-step-node">
-                        <div className={`logistics-node-circle ${activeOrder.deliveryStatus === "DELIVERED" ? "done" : activeOrder.deliveryStatus === "OUT_FOR_DELIVERY" ? "current" : "pending"}`}>
-                          {activeOrder.deliveryStatus === "DELIVERED" ? "✓" : "4"}
-                        </div>
-                        <span className={`logistics-node-label ${activeOrder.deliveryStatus === "DELIVERED" ? "active" : ""}`}>Delivered</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ACTIONS BAR */}
-                  <div className="logistics-active-actions-row">
-                    <a
-                      href={`tel:${activeOrder.customerPhone}`}
-                      className="logistics-btn-secondary logistics-btn-call"
-                    >
-                      <Phone size={16} /> Call Customer
-                    </a>
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeOrder.deliveryAddress)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="logistics-btn-secondary logistics-btn-nav"
-                    >
-                      <Navigation size={16} /> Navigate
-                    </a>
-
-                    {nextAction && (
+                  {activeOrders.length > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <button
-                        className="logistics-btn-primary-action"
-                        onClick={() => setConfirmModal(nextAction)}
-                        disabled={actionLoading}
+                        onClick={toggleSelectAllActive}
+                        style={{
+                          background: "#F1F5F9",
+                          border: "1px solid #CBD5E1",
+                          borderRadius: 8,
+                          padding: "6px 14px",
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          color: "#334155",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6
+                        }}
                       >
-                        <CheckCircle2 size={18} /> {nextAction.buttonLabel}
+                        {selectedActiveIds.length === activeOrders.length ? <CheckSquare size={16} color="#087EA4" /> : <Square size={16} />}
+                        {selectedActiveIds.length === activeOrders.length ? "Deselect All" : `Select All (${activeOrders.length})`}
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                /* NO ACTIVE DELIVERY COMPACT STATE */
-                <div className="logistics-empty-active-card">
-                  <div className="logistics-empty-icon">
-                    <Package size={24} />
-                  </div>
-                  <h3 style={{ margin: "4px 0 0 0", fontSize: 16, fontWeight: 800, color: "#0F172A" }}>
-                    No Active Delivery
-                  </h3>
-                  <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>
-                    You currently don't have an active delivery. Check Available Orders to accept a new delivery.
-                  </p>
-                  <button
-                    onClick={() => setActiveTab("available")}
-                    style={{ background: "#E0F2FE", color: "#0369A1", border: "1px solid #BAE6FD", padding: "8px 16px", borderRadius: 8, fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginTop: 8 }}
+
+                {/* BATCH STATUS CONTROLLER BAR */}
+                {selectedActiveIds.length > 0 && (
+                  <div
+                    style={{
+                      background: "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)",
+                      color: "#FFFFFF",
+                      padding: "16px 20px",
+                      borderRadius: 14,
+                      marginBottom: 20,
+                      boxShadow: "0 10px 25px rgba(15,23,42,0.25)",
+                      display: "flex",
+                      justify: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 12
+                    }}
                   >
-                    View Available Orders ({availableOrders.length})
-                  </button>
-                </div>
-              )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Zap size={20} color="#FBBF24" />
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 14 }}>
+                          {selectedActiveIds.length} Order(s) Selected for Batch Status Update
+                        </div>
+                        <div style={{ fontSize: 11.5, color: "#94A3B8" }}>
+                          Change delivery status for all selected orders simultaneously in 1 click
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => handleBatchStatusUpdate("PICKED_UP")}
+                        disabled={actionLoading}
+                        style={{ background: "#38BDF8", color: "#0F172A", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}
+                      >
+                        Mark Picked Up ({selectedActiveIds.length})
+                      </button>
+                      <button
+                        onClick={() => handleBatchStatusUpdate("OUT_FOR_DELIVERY")}
+                        disabled={actionLoading}
+                        style={{ background: "#FBBF24", color: "#0F172A", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}
+                      >
+                        Mark Out for Delivery ({selectedActiveIds.length})
+                      </button>
+                      <button
+                        onClick={() => handleBatchStatusUpdate("DELIVERED")}
+                        disabled={actionLoading}
+                        style={{ background: "#22C55E", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}
+                      >
+                        ✓ Mark Delivered ({selectedActiveIds.length})
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ACTIVE ORDERS GRID */}
+                {activeOrders.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    {activeOrders.map((order) => {
+                      const isSelected = selectedActiveIds.includes(order.id);
+                      let nextStatus = null;
+                      let nextStatusLabel = "";
+
+                      if (order.deliveryStatus === "ACCEPTED") {
+                        nextStatus = "PICKED_UP";
+                        nextStatusLabel = "Mark Picked Up";
+                      } else if (order.deliveryStatus === "PICKED_UP") {
+                        nextStatus = "OUT_FOR_DELIVERY";
+                        nextStatusLabel = "Mark Out for Delivery";
+                      } else if (order.deliveryStatus === "OUT_FOR_DELIVERY") {
+                        nextStatus = "DELIVERED";
+                        nextStatusLabel = "Mark Delivered";
+                      }
+
+                      return (
+                        <div
+                          key={order.id}
+                          className="logistics-active-hero-card"
+                          style={{
+                            border: isSelected ? "2px solid #087EA4" : "1px solid #E2E8F0",
+                            boxShadow: isSelected ? "0 8px 24px rgba(8,126,164,0.18)" : "0 4px 16px rgba(15,23,42,0.04)"
+                          }}
+                        >
+                          <div className="logistics-active-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <div
+                                onClick={() => toggleSelectActiveOrder(order.id)}
+                                style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
+                              >
+                                {isSelected ? <CheckSquare size={22} color="#087EA4" /> : <Square size={22} color="#94A3B8" />}
+                              </div>
+                              <div className="logistics-order-id-badge">
+                                <span className="logistics-active-tag">ACTIVE DELIVERY</span>
+                                <h2 className="logistics-active-order-title" style={{ margin: 0 }}>
+                                  Order #{order.orderIdFormatted}
+                                </h2>
+                              </div>
+                            </div>
+
+                            <span style={{ padding: "5px 14px", background: "#DCFCE7", color: "#166534", borderRadius: 20, fontSize: 12.5, fontWeight: 800 }}>
+                              {order.deliveryStatus}
+                            </span>
+                          </div>
+
+                          <div className="logistics-active-grid">
+                            <div className="logistics-customer-info-box">
+                              <div className="logistics-customer-name">
+                                {order.customerName}
+                              </div>
+                              <div className="logistics-info-row">
+                                <Phone size={15} color="#087EA4" /> <strong>Phone:</strong> {order.customerPhone}
+                              </div>
+                              <div className="logistics-info-row">
+                                <MapPin size={15} color="#087EA4" /> <strong>Address:</strong> {order.deliveryAddress}
+                              </div>
+                            </div>
+
+                            <div className="logistics-order-metrics-box">
+                              <div className="logistics-metric-row">
+                                <span style={{ color: "#64748B" }}>Order Amount:</span>
+                                <strong style={{ fontSize: 15, color: "#16A34A" }}>₹{order.totalAmount}</strong>
+                              </div>
+                              <div className="logistics-metric-row">
+                                <span style={{ color: "#64748B" }}>Payment:</span>
+                                <strong>{order.paymentMethod === "COD" ? "Cash on Delivery" : "Paid Online"}</strong>
+                              </div>
+                              <div className="logistics-metric-row">
+                                <span style={{ color: "#64748B" }}>Items ({order.itemsCount}):</span>
+                                <strong>{order.items?.map(i => i.medicineName).join(", ") || "Medicines"}</strong>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ACTIONS BAR */}
+                          <div className="logistics-active-actions-row" style={{ marginTop: 16 }}>
+                            <a
+                              href={`tel:${order.customerPhone}`}
+                              className="logistics-btn-secondary logistics-btn-call"
+                            >
+                              <Phone size={16} /> Call Customer
+                            </a>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.deliveryAddress)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="logistics-btn-secondary logistics-btn-nav"
+                            >
+                              <Navigation size={16} /> Navigate
+                            </a>
+
+                            {nextStatus && (
+                              <button
+                                className="logistics-btn-primary-action"
+                                onClick={() => setConfirmModal({ orderId: order.id, nextStatus, buttonLabel: nextStatusLabel })}
+                                disabled={actionLoading}
+                              >
+                                <CheckCircle2 size={18} /> {nextStatusLabel}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* NO ACTIVE DELIVERY COMPACT STATE */
+                  <div className="logistics-empty-active-card">
+                    <div className="logistics-empty-icon">
+                      <Package size={24} />
+                    </div>
+                    <h3 style={{ margin: "4px 0 0 0", fontSize: 16, fontWeight: 800, color: "#0F172A" }}>
+                      No Active Deliveries
+                    </h3>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>
+                      You currently don't have active deliveries. Check Available Orders to accept multiple deliveries at once!
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("available")}
+                      style={{ background: "#E0F2FE", color: "#0369A1", border: "1px solid #BAE6FD", padding: "8px 16px", borderRadius: 8, fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginTop: 8 }}
+                    >
+                      View Available Orders ({availableOrders.length})
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* ─────────────────────────────────────────────────────────────
                   AVAILABLE DELIVERY ORDERS GRID
                   ───────────────────────────────────────────────────────────── */}
               <div className="logistics-section-header">
-                <h2 className="logistics-section-title">
-                  Available Delivery Orders ({filteredAvailableOrders.length})
-                </h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <h2 className="logistics-section-title">
+                    Available Delivery Orders ({filteredAvailableOrders.length})
+                  </h2>
+
+                  {filteredAvailableOrders.length > 0 && (
+                    <button
+                      onClick={toggleSelectAllAvailable}
+                      style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 700, color: "#334155", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}
+                    >
+                      {selectedAvailableIds.length === filteredAvailableOrders.length ? <CheckSquare size={15} color="#087EA4" /> : <Square size={15} />}
+                      {selectedAvailableIds.length === filteredAvailableOrders.length ? "Deselect All" : "Select All"}
+                    </button>
+                  )}
+
+                  {selectedAvailableIds.length > 0 && (
+                    <button
+                      onClick={handleBatchAcceptOrders}
+                      disabled={actionLoading}
+                      style={{ background: "linear-gradient(135deg, #087EA4 0%, #0369A1 100%)", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 4px 12px rgba(8,126,164,0.3)" }}
+                    >
+                      <Zap size={14} color="#FDE047" /> Accept Selected ({selectedAvailableIds.length})
+                    </button>
+                  )}
+                </div>
 
                 <div className="logistics-toolbar">
                   <div style={{ position: "relative" }}>
@@ -764,44 +947,59 @@ export default function DeliveryDashboard({ user, setUser }) {
                 </div>
               ) : (
                 <div className="logistics-orders-grid">
-                  {filteredAvailableOrders.map((ord) => (
-                    <div key={ord.id} className="logistics-order-card">
-                      <div>
-                        <div className="logistics-order-card-head">
-                          <span className="logistics-order-id">Order #{ord.orderIdFormatted}</span>
-                          <span className="logistics-order-price">₹{ord.totalAmount}</span>
+                  {filteredAvailableOrders.map((ord) => {
+                    const isSelected = selectedAvailableIds.includes(ord.id);
+                    return (
+                      <div
+                        key={ord.id}
+                        className="logistics-order-card"
+                        style={{
+                          border: isSelected ? "2px solid #087EA4" : "1px solid #E2E8F0",
+                          backgroundColor: isSelected ? "#F0F9FF" : "#FFFFFF"
+                        }}
+                      >
+                        <div>
+                          <div className="logistics-order-card-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div onClick={() => toggleSelectAvailableOrder(ord.id)} style={{ cursor: "pointer" }}>
+                                {isSelected ? <CheckSquare size={18} color="#087EA4" /> : <Square size={18} color="#94A3B8" />}
+                              </div>
+                              <span className="logistics-order-id">Order #{ord.orderIdFormatted}</span>
+                            </div>
+                            <span className="logistics-order-price">₹{ord.totalAmount}</span>
+                          </div>
+
+                          <div className="logistics-order-customer" style={{ marginTop: 8 }}>{ord.customerName}</div>
+                          <div className="logistics-order-address">
+                            <MapPin size={14} color="#087EA4" style={{ flexShrink: 0, marginTop: 2 }} />
+                            {ord.deliveryAddress}
+                          </div>
                         </div>
 
-                        <div className="logistics-order-customer">{ord.customerName}</div>
-                        <div className="logistics-order-address">
-                          <MapPin size={14} color="#087EA4" style={{ flexShrink: 0, marginTop: 2 }} />
-                          {ord.deliveryAddress}
+                        <div className="logistics-order-foot">
+                          <div style={{ fontSize: 12, color: "#64748B", fontWeight: 600 }}>
+                            {ord.itemsCount} Items • 2.4 km away
+                          </div>
+
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              className="logistics-btn-details"
+                              onClick={() => setSelectedOrderDetails(ord)}
+                            >
+                              View Details
+                            </button>
+                            <button
+                              className="logistics-btn-accept"
+                              onClick={() => handleAcceptOrder(ord.id)}
+                              disabled={actionLoading}
+                            >
+                              Accept
+                            </button>
+                          </div>
                         </div>
                       </div>
-
-                      <div className="logistics-order-foot">
-                        <div style={{ fontSize: 12, color: "#64748B", fontWeight: 600 }}>
-                          {ord.itemsCount} Items • 2.4 km away
-                        </div>
-
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button
-                            className="logistics-btn-details"
-                            onClick={() => setSelectedOrderDetails(ord)}
-                          >
-                            View Details
-                          </button>
-                          <button
-                            className="logistics-btn-accept"
-                            onClick={() => handleAcceptOrder(ord.id)}
-                            disabled={actionLoading}
-                          >
-                            Accept Order
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>
