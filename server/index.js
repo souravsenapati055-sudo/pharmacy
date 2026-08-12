@@ -120,10 +120,15 @@ function mapMedicine(row) {
 function mapDeliveryPartner(row) {
   return {
     id: row.id,
+    deliveryId: row.delivery_id || `DEL${1000 + row.id}`,
     name: row.name,
     phone: row.phone,
-    orders: row.completed_order_count,
-    activeOrders: row.active_order_count,
+    email: row.email,
+    orders: row.completed_order_count || 0,
+    activeOrders: row.active_order_count || 0,
+    isOnline: Boolean(row.is_online),
+    status: row.status || "ACTIVE",
+    vehicleType: row.vehicle_type || "Scooter",
   };
 }
 

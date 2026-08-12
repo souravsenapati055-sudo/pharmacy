@@ -1386,67 +1386,195 @@ export default function Dashboard({
             </div>
           </div>
 
-          {/* ===== 5 LIVE DELIVERY DETAILS & DRIVER CONTROL SECTION ===== */}
-          <div className="dash-card border-top-primary" style={{ marginTop: 28 }}>
-            <div className="dash-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <h3 className="dash-card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Truck size={18} color="#087ea4" /> Live Delivery Boys Overview & Delivery Controls
-                </h3>
-                <p className="dash-card-subtitle">5 active delivery partners, order assignments, and real-time status control</p>
+          {/* ===== LIVE DELIVERY FLEET OVERVIEW & ADMIN CONTROLS SECTION ===== */}
+          <div
+            style={{
+              marginTop: 32,
+              background: "#FFFFFF",
+              borderRadius: 20,
+              border: "1px solid #E2E8F0",
+              padding: "26px 28px",
+              boxShadow: "0 10px 30px rgba(15,23,42,0.05)"
+            }}
+          >
+            {/* Section Header Bar */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22, flexWrap: "wrap", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 14, background: "#E0F2FE", color: "#087EA4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Truck size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", margin: 0, letterSpacing: "-0.01em" }}>
+                    Live Delivery Fleet & Duty Controls
+                  </h3>
+                  <p style={{ fontSize: 13, color: "#64748B", margin: "2px 0 0 0" }}>
+                    {(Array.isArray(deliveryPeople) && deliveryPeople.length) || 5} registered delivery partners • Real-time order tracking & status control
+                  </p>
+                </div>
               </div>
-              <button className="btn-secondary" style={{ fontSize: 12.5 }} onClick={() => navigate("/admin/delivery")}>
-                Manage All Drivers →
-              </button>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <span style={{ background: "#DCFCE7", color: "#15803D", border: "1px solid #BBF7D0", padding: "6px 14px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  🟢 {((Array.isArray(deliveryPeople) && deliveryPeople.length) || 5)} Drivers Active
+                </span>
+                <button
+                  style={{
+                    background: "#087EA4",
+                    color: "#FFFFFF",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "9px 20px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(8,126,164,0.25)",
+                    transition: "all 0.2s ease"
+                  }}
+                  onClick={() => navigate("/admin/delivery")}
+                >
+                  Manage Fleet →
+                </button>
+              </div>
             </div>
 
-            <div className="table-responsive">
-              <table className="dash-table">
+            {/* Premium Glassmorphism Driver Table */}
+            <div style={{ overflowX: "auto", borderRadius: 14, border: "1px solid #F1F5F9" }}>
+              <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, background: "#FFFFFF" }}>
                 <thead>
-                  <tr>
-                    <th>Driver Name</th>
-                    <th>Phone Contact</th>
-                    <th>Active Orders</th>
-                    <th>Delivered Orders</th>
-                    <th>COD Collected</th>
-                    <th>Duty Status</th>
-                    <th>Admin Control Action</th>
+                  <tr style={{ background: "#F8FAFC" }}>
+                    <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #E2E8F0" }}>Driver Name & ID</th>
+                    <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #E2E8F0" }}>Phone Contact</th>
+                    <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #E2E8F0" }}>Active Orders</th>
+                    <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #E2E8F0" }}>Completed</th>
+                    <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #E2E8F0" }}>COD Collected</th>
+                    <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #E2E8F0" }}>Duty Status</th>
+                    <th style={{ padding: "14px 18px", textAlign: "right", fontSize: 11.5, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #E2E8F0" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {[
-                    { id: 1, name: "Amit Kumar", phone: "+91 98765 43210", active: 2, completed: 318, cod: "₹1,45,200", status: "On Duty" },
-                    { id: 2, name: "Vikram Singh", phone: "+91 98123 45678", active: 1, completed: 275, cod: "₹1,28,400", status: "Delivering" },
-                    { id: 3, name: "Rajesh Rao", phone: "+91 97654 32109", active: 0, completed: 228, cod: "₹98,500", status: "On Duty" },
-                    { id: 4, name: "Priya Nair", phone: "+91 96543 21098", active: 1, completed: 202, cod: "₹72,450", status: "Delivering" },
-                    { id: 5, name: "Suresh Patel", phone: "+91 95432 10987", active: 0, completed: 153, cod: "₹38,100", status: "On Duty" },
-                  ].map((dp) => (
-                    <tr key={dp.id}>
-                      <td>
-                        <strong style={{ color: "#0f172a" }}>{dp.name}</strong>
-                      </td>
-                      <td>
-                        <a href={`tel:${dp.phone}`} style={{ color: "#087ea4", textDecoration: "none", fontWeight: 600 }}>
-                          {dp.phone}
-                        </a>
-                      </td>
-                      <td><span className="badge badge-status-processing">{dp.active} Active</span></td>
-                      <td><strong style={{ color: "#16a34a" }}>{dp.completed} Completed</strong></td>
-                      <td><strong>{dp.cod}</strong></td>
-                      <td>
-                        <span className="badge badge-status-delivered">🟢 {dp.status}</span>
-                      </td>
-                      <td>
-                        <button
-                          className="btn-action-small"
-                          style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd" }}
-                          onClick={() => navigate("/admin/delivery")}
-                        >
-                          Track / Control
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                    { id: 1001, name: "Amit Kumar", phone: "+91 98765 43210", active: 2, completed: 318, cod: "₹1,45,200", status: "Delivering" },
+                    { id: 1002, name: "Vikram Singh", phone: "+91 98123 45678", active: 1, completed: 275, cod: "₹1,28,400", status: "Delivering" },
+                    { id: 1003, name: "Rajesh Rao", phone: "+91 97654 32109", active: 0, completed: 228, cod: "₹98,500", status: "On Duty" },
+                    { id: 1004, name: "Priya Nair", phone: "+91 96543 21098", active: 1, completed: 202, cod: "₹72,450", status: "Delivering" },
+                    { id: 1005, name: "Suresh Patel", phone: "+91 95432 10987", active: 0, completed: 153, cod: "₹38,100", status: "On Duty" },
+                  ].map((dp, idx) => {
+                    const initials = dp.name.split(" ").map((n) => n[0]).join("");
+                    return (
+                      <tr
+                        key={dp.id}
+                        style={{
+                          borderBottom: idx === 4 ? "none" : "1px solid #F1F5F9",
+                          transition: "background 0.15s ease"
+                        }}
+                      >
+                        <td style={{ padding: "16px 18px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div
+                              style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: "50%",
+                                background: "linear-gradient(135deg, #087EA4 0%, #0284C7 100%)",
+                                color: "#FFFFFF",
+                                fontWeight: 800,
+                                fontSize: 13.5,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                boxShadow: "0 2px 8px rgba(8,126,164,0.25)"
+                              }}
+                            >
+                              {initials}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>{dp.name}</div>
+                              <span style={{ fontSize: 11, fontWeight: 700, background: "#F1F5F9", color: "#64748B", padding: "1px 6px", borderRadius: 4 }}>
+                                DEL{dp.id}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td style={{ padding: "16px 18px" }}>
+                          <a
+                            href={`tel:${dp.phone}`}
+                            style={{
+                              background: "#F0F9FF",
+                              border: "1px solid #BAE6FD",
+                              padding: "5px 12px",
+                              borderRadius: 8,
+                              color: "#0369A1",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              textDecoration: "none"
+                            }}
+                          >
+                            <Phone size={13} /> {dp.phone}
+                          </a>
+                        </td>
+
+                        <td style={{ padding: "16px 18px" }}>
+                          {dp.active > 0 ? (
+                            <span style={{ background: "#FEF3C7", color: "#D97706", border: "1px solid #FDE68A", padding: "4px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              ⚡ {dp.active} Active
+                            </span>
+                          ) : (
+                            <span style={{ background: "#F1F5F9", color: "#64748B", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
+                              0 Active
+                            </span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: "16px 18px" }}>
+                          <span style={{ color: "#16A34A", fontWeight: 800, fontSize: 13.5, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            <CheckCircle2 size={15} color="#16A34A" /> {dp.completed} Completed
+                          </span>
+                        </td>
+
+                        <td style={{ padding: "16px 18px" }}>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: "#0F172A" }}>{dp.cod}</span>
+                        </td>
+
+                        <td style={{ padding: "16px 18px" }}>
+                          {dp.status === "Delivering" ? (
+                            <span style={{ background: "#E0F2FE", color: "#0369A1", border: "1px solid #BAE6FD", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              🚚 Delivering
+                            </span>
+                          ) : (
+                            <span style={{ background: "#DCFCE7", color: "#15803D", border: "1px solid #BBF7D0", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              🟢 On Duty
+                            </span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: "16px 18px", textAlign: "right" }}>
+                          <button
+                            style={{
+                              background: "#F0F9FF",
+                              color: "#087EA4",
+                              border: "1px solid #BAE6FD",
+                              borderRadius: 8,
+                              padding: "6px 14px",
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              transition: "all 0.15s ease"
+                            }}
+                            onClick={() => navigate("/admin/delivery")}
+                          >
+                            <ShieldCheck size={13} /> Track / Control ↗
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
