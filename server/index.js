@@ -311,13 +311,13 @@ function getDateRange(range, startDate, endDate) {
 }
 
 async function fetchAnalyticsBaseData() {
-  const orders = await firestoreService.getOrders();
-  const orderItems = await firestoreService.getAllOrderItems();
-  const allMeds = await firestoreService.getMedicines();
-  const medicines = allMeds.filter((m) => m.is_active !== 0);
-  const users = await firestoreService.getUsers();
-  const allPartners = await firestoreService.getDeliveryPartners();
-  const deliveryPartners = allPartners.filter((p) => p.is_active !== 0);
+  const orders = await mysqlService.getOrders();
+  const orderItems = await mysqlService.getAllOrderItems();
+  const allMeds = await mysqlService.getMedicines();
+  const medicines = (allMeds || []).filter((m) => m.is_active !== 0);
+  const users = await mysqlService.getUsers();
+  const allPartners = await mysqlService.getDeliveryPartners();
+  const deliveryPartners = (allPartners || []).filter((p) => p.is_active !== 0);
   return { orders, orderItems, medicines, users, deliveryPartners };
 }
 
@@ -875,18 +875,25 @@ app.get("/api/admin/dashboard", async (_req, res) => {
       stats: analytics.stats,
       deliverySummary: {
         totalPartners: baseData.deliveryPartners.length,
-        activeOrders: baseData.orders.filter((order) => order.status !== "Delivered").length,
-        completedDeliveries: baseData.deliveryPartners.reduce(
-          (sum, partner) => sum + (partner.completed_order_count || 0),
-          0
-        ),
+        activeOrders: baseData.orders.filter((order) => {
+          const st = (order.delivery_status || order.status || "").toUpperCase();
+          return st !== "DELIVERED" && st !== "CANCELLED";
+        }).length,
+        pendingDeliveries: baseData.orders.filter((order) => {
+          const st = (order.delivery_status || order.status || "").toUpperCase();
+          return st === "PICKED_UP" || st === "OUT_FOR_DELIVERY" || st === "IN_TRANSIT";
+        }).length,
+        completedDeliveries: baseData.orders.filter((order) => {
+          const st = (order.delivery_status || order.status || "").toUpperCase();
+          return st === "DELIVERED";
+        }).length,
       },
       salesData: analytics.salesData,
       medicineData: analytics.topProducts.map((item) => ({
         name: item.name,
         qty: item.quantity,
       })),
-      recentOrders: recentOrders.slice(0, 8),
+      recentOrders: recentOrders.slice(0, 15),
     });
   } catch (error) {
     console.error("Admin dashboard error:", error);

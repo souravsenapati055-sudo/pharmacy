@@ -414,6 +414,9 @@ export default function Dashboard({
 
   // Derived metrics - Revenue ONLY updated when product delivered successfully
   const totalRevenue = useMemo(() => {
+    if (dashboardData?.stats?.totalSales !== undefined && dashboardData?.stats?.totalSales !== null) {
+      return Number(dashboardData.stats.totalSales);
+    }
     return (Array.isArray(recentOrders) ? recentOrders : []).reduce(
       (sum, o) => {
         const s = (o?.deliveryStatus || o?.status || "").toLowerCase();
@@ -424,21 +427,33 @@ export default function Dashboard({
       },
       0
     );
-  }, [recentOrders]);
+  }, [dashboardData, recentOrders]);
 
   const activeOrdersCount = useMemo(() => {
+    if (dashboardData?.deliverySummary?.activeOrders !== undefined) {
+      return dashboardData.deliverySummary.activeOrders;
+    }
     return (Array.isArray(recentOrders) ? recentOrders : []).filter(
-      (o) => o && o.status !== "Delivered" && o.status !== "Cancelled"
+      (o) => o && (o.status || o.deliveryStatus || "").toUpperCase() !== "DELIVERED" && (o.status || o.deliveryStatus || "").toUpperCase() !== "CANCELLED"
     ).length;
-  }, [recentOrders]);
+  }, [dashboardData, recentOrders]);
 
-  const lowStockCount =
-    dashboardData?.stats?.lowStockCount ||
-    (Array.isArray(medicines) ? medicines.filter((m) => m && m.stock < 20).length : 8);
+  const lowStockCount = useMemo(() => {
+    if (dashboardData?.stats?.lowStockCount !== undefined) {
+      return dashboardData.stats.lowStockCount;
+    }
+    return Array.isArray(medicines) ? medicines.filter((m) => m && Number(m.stock) < 20).length : 0;
+  }, [dashboardData, medicines]);
 
-  const activeDeliveries = (Array.isArray(recentOrders) ? recentOrders : []).filter(
-    (o) => o && o.status === "Out for Delivery"
-  ).length;
+  const activeDeliveries = useMemo(() => {
+    if (dashboardData?.deliverySummary?.pendingDeliveries !== undefined) {
+      return dashboardData.deliverySummary.pendingDeliveries;
+    }
+    return (Array.isArray(recentOrders) ? recentOrders : []).filter((o) => {
+      const st = (o?.deliveryStatus || o?.status || "").toUpperCase();
+      return st === "PICKED_UP" || st === "OUT_FOR_DELIVERY" || st === "IN_TRANSIT";
+    }).length;
+  }, [dashboardData, recentOrders]);
 
   const topSellingMedicines = useMemo(() => {
     if (dashboardData?.medicineData && Array.isArray(dashboardData.medicineData) && dashboardData.medicineData.length > 0) {
@@ -935,7 +950,7 @@ export default function Dashboard({
                 </div>
               </div>
               <div className="kpi-value-row">
-                <span className="kpi-value">{formatCurrency(totalRevenue || 84290)}</span>
+                <span className="kpi-value">{formatCurrency(totalRevenue)}</span>
                 <span className="kpi-trend positive">
                   <ArrowUpRight size={14} /> +12.5%
                 </span>
@@ -951,7 +966,7 @@ export default function Dashboard({
                 </div>
               </div>
               <div className="kpi-value-row">
-                <span className="kpi-value">{recentOrders.length || 154}</span>
+                <span className="kpi-value">{dashboardData?.stats?.totalOrders ?? (Array.isArray(recentOrders) ? recentOrders.length : 0)}</span>
                 <span className="kpi-trend positive">
                   <ArrowUpRight size={14} /> +8.2%
                 </span>
@@ -981,7 +996,7 @@ export default function Dashboard({
                 </div>
               </div>
               <div className="kpi-value-row">
-                <span className="kpi-value">{dashboardData?.stats?.totalCustomers || 128}</span>
+                <span className="kpi-value">{dashboardData?.stats?.totalCustomers ?? (Array.isArray(customers) ? customers.length : 0)}</span>
                 <span className="kpi-trend positive">
                   <ArrowUpRight size={14} /> +5.4%
                 </span>
@@ -1011,7 +1026,7 @@ export default function Dashboard({
                 </div>
               </div>
               <div className="kpi-value-row">
-                <span className="kpi-value">{activeDeliveries || 6}</span>
+                <span className="kpi-value">{activeDeliveries}</span>
                 <span className="kpi-badge-sub info">In Transit</span>
               </div>
               <span className="kpi-subtext">Currently out for delivery</span>
